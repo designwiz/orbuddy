@@ -51,7 +51,9 @@
 #include "sdcard.h"                  // microSD (TF) slot, SPI mode
 #include "roads_sd.h"                // worldwide roads read off the SD card
 #include "clock_view.h"              // retained for legacy/theme clock support
-#include "home_view.h"\n#include "timer_view.h"\n#include "more_view.h"               // OrbBuddy HOME — boot app in APP_CLOCK slot
+#include "home_view.h"               // OrbBuddy HOME — boot app in APP_CLOCK slot
+#include "timer_view.h"
+#include "more_view.h"
 #include "weather_view.h"           // animated weather-radar app (knob channel)
 #include "settings_view.h"          // settings app (menu; captures the knob)
 #include "custom_boot_target.h"       // CUSTOM_BOOT_TARGET — set by whichever Launch Kit push (clock/splash/radar) ran last
