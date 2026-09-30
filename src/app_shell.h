@@ -47,17 +47,12 @@ namespace app_shell {
     // a slot naming an app nobody registers is the fault verifySlots() exists to catch,
     // and leaving three of them deliberately would make the check cry wolf for ever.
     enum Slot {
-        APP_CLOCK = 0,
-        APP_FLIGHT,
-#if !APPS_LAUNCH_ONE
+        APP_CLOCK = 0,   // OrbBuddy HOME
         APP_WEATHER,
-        APP_SURVEILLANCE,
-#endif
-        APP_INTEL,
-#if !APPS_LAUNCH_ONE
-        APP_TICKER,
-#endif
-        APP_SETTINGS,
+        APP_FLIGHT,      // OrbBuddy RADAR
+        APP_TIMER,
+        APP_MORE,
+        APP_SETTINGS,    // hidden full Settings, kept for Wi-Fi/setup flows
         APP_COUNT,
     };
 

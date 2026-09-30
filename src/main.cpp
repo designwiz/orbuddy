@@ -50,7 +50,10 @@
 #include "diag_log.h"                // RTC-memory event ring buffer, survives a reboot
 #include "sdcard.h"                  // microSD (TF) slot, SPI mode
 #include "roads_sd.h"                // worldwide roads read off the SD card
-#include "clock_view.h"              // clock app (app two)
+#include "clock_view.h"              // retained for legacy/theme clock support
+#include "home_view.h"               // OrbBuddy HOME — boot app in APP_CLOCK slot
+#include "timer_view.h"
+#include "more_view.h"
 #include "weather_view.h"           // animated weather-radar app (knob channel)
 #include "settings_view.h"          // settings app (menu; captures the knob)
 #include "custom_boot_target.h"       // CUSTOM_BOOT_TARGET — set by whichever Launch Kit push (clock/splash/radar) ran last
@@ -2685,39 +2688,30 @@ void setup() {
     // is unchanged.
     lv_obj_t *radarScreen = lv_scr_act();
     psram_mark("after display+radar");
-    clockview::init();
-    psram_mark("after clockview");
-    // onEnter takes the canvas, onExit gives it back. It answers neither a turn nor a press.
-    app_shell::add(clockview::screen(), theme_style::names().clock, nullptr, nullptr, false, clockview::onEnter, clockview::onExit, !theme_style::apps().clock);
-    app_shell::add(radarScreen, theme_style::names().flight, radar_press_custom_or_theme, radar_turn_select, false, radar_show_home_custom, radar_exit_release_style, !theme_style::apps().flight);
-#if !APPS_LAUNCH_ONE
-    app_shell::add(radarScreen, theme_style::names().weather,  weather_press_cycle, nullptr, false, radar_show_weather, radar_hide_weather, !theme_style::apps().weather);
-    spycamview::init();
-    psram_mark("after spycamview");
-#endif
-#if !APPS_LAUNCH_ONE
-    app_shell::add(spycamview::screen(), theme_style::names().surveillance, spycamview::onPress, spycamview::onTurn, false, nullptr, nullptr, !theme_style::apps().surveillance);  // push cycles cams; clip loads lazily on commit
-#endif
-    // Intel before Settings. It used to be appended after, purely because the jumps below
-    // were written as bare integers and moving anything would have pointed the jumps at
-    // the wrong screen. They name app_shell::Slot now, so the menu can be ordered the way it
-    // should read: Settings last, after everything it configures.
-    intelview::init();
-    psram_mark("after intelview");
-    app_shell::add(intelview::screen(), theme_style::names().headlines,
-                   intelview::onPress, intelview::onTurn, false, intelview::onEnter, intelview::onExit, !theme_style::apps().headlines);  // push fetches now, or toggles scroll mode when the type size overflows; onEnter resets to the top
-#if !APPS_LAUNCH_ONE
-    tickerview::init();
-    psram_mark("after tickerview");
-    app_shell::add(tickerview::screen(), theme_style::names().ticker,
-                   tickerview::onPress, tickerview::onTurn, false,
-                   tickerview::onEnter, tickerview::onExit, !theme_style::apps().ticker);  // turn steps the watchlist; onEnter takes the strip canvas only when the design curves it
-#endif
+
+    // OrbBuddy v0.2: five obvious screens, in the exact order the knob traverses them.
+    homeview::init();
+    weatherview::init();
+    timerview::init();
+    moreview::init();
     settingsview::init();
-    psram_mark("after settingsview");
-    app_shell::add(settingsview::screen(), theme_style::names().settings,
-                   settingsview::onPress, settingsview::onTurn,
-                   true, settingsview::onEnter, settingsview::onExit, false);  // captures the knob on entry; onEnter resets to the menu and takes the text canvas, onExit gives it back
+
+    app_shell::add(homeview::screen(), "HOME",
+                   nullptr, nullptr, false, homeview::onEnter, homeview::onExit, false);
+    app_shell::add(weatherview::screen(), "WEATHER",
+                   weatherview::onPress, nullptr, false, nullptr, nullptr, false);
+    app_shell::add(radarScreen, "RADAR",
+                   radar_press_custom_or_theme, radar_turn_select, false,
+                   radar_show_home_custom, radar_exit_release_style, false);
+    app_shell::add(timerview::screen(), "TIMER",
+                   timerview::onPress, timerview::onTurn, false,
+                   timerview::onEnter, timerview::onExit, false);
+    // MORE is the glanceable status screen. Press opens the existing full Settings UI.
+    app_shell::add(moreview::screen(), "MORE",
+                   nullptr, nullptr, false, moreview::onEnter, nullptr, false);
+    app_shell::add(settingsview::screen(), "SETTINGS",
+                   settingsview::onPress, settingsview::onTurn, true,
+                   settingsview::onEnter, settingsview::onExit, true);
     // Before anything jumps to a slot by name. See app_shell::verifySlots(): the enum and
     // the registration order above have drifted apart twice, and both times the only
     // symptom was the wrong screen appearing with nothing said about it.

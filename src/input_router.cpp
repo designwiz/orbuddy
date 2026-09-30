@@ -119,8 +119,7 @@ bool rock_pending() { return rock_state() == ROCK_PENDING; }
 // A reversal that is settling needs a poll with no new input to finish settling. main.cpp
 // and the simulator call this every pass; it is a no-op unless a reversal is in flight.
 void input_router::tick() {
-    if (rock_pending()) return;                 // still inside the settle: nothing to decide
-    if (knob::lastRockMs() != 0 && knob::lastRockMs() != s_firedAt) dispatch(0, false);
+    // OrbBuddy v0.2 has no rock gesture to settle.
 }
 
 void input_router::dispatch(int delta, bool pressed) {
@@ -166,14 +165,9 @@ void input_router::dispatch(int delta, bool pressed) {
     // free to keep meaning "open the app menu" here as everywhere else. Without that, a
     // theme could strand somebody on a screen that will not take no for an answer, which is
     // the thing CUT-05 exists to forbid.
-    // The reversal, settled or not. While it settles the detents are held; when it turns
-    // out to be a scroll they are let through with this poll's, and when it is a rock they
-    // are dropped, because the detents that MADE the gesture are not input to the app.
-    const Rock rock = rock_state();
-    if (rock == ROCK_PENDING) { s_held += delta; delta = 0; }
-    else if (rock == ROCK_REJECT) { delta += s_held; s_held = 0; }
-    else if (rock == ROCK_FIRE) { s_held = 0; }
-
+    // OrbBuddy v0.2 deliberately drops the old rock gesture. Navigation should
+    // be discoverable: turn = next/previous screen; captured screens own the turn.
+    const Rock rock = ROCK_NONE;
     if (wind_notice::showing()) {
         if (rock == ROCK_FIRE) { app_shell::openSwitcher(); return; }
         if (delta != 0) wind_notice::turn(delta);
@@ -215,12 +209,21 @@ void input_router::dispatch(int delta, bool pressed) {
     // Safe to allow: load() sets the captured flag from the app being entered and runs the
     // outgoing app's exit hook on every real switch, so a screen rocked out of leaves neither
     // its capture nor its state behind.
-    if (rock == ROCK_FIRE) {
-        app_shell::openSwitcher();
-        return;
+    // OrbBuddy navigation: the knob's default job is moving between screens.
+    // A screen only consumes rotation after it explicitly captures the knob (Settings,
+    // a timer editor, etc.). This removes the old rock-then-browse-then-commit ceremony
+    // from ordinary navigation: one detent means one screen.
+    if (delta != 0) {
+        if (app_shell::captured()) {
+            app_shell::turnCurrent(delta);
+        } else {
+            const int steps = delta < 0 ? -delta : delta;
+            for (int i = 0; i < steps; ++i) {
+                if (delta > 0) app_shell::next();
+                else           app_shell::prev();
+            }
+        }
     }
-
-    if (delta != 0) app_shell::turnCurrent(delta);
     // A press the current screen had no use for is not nothing happening, it is somebody
     // asking what this control does. The clock is the case that matters: it registers no
     // press handler, so on the first screen a new Orb ever shows, the most obvious thing to

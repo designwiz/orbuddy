@@ -28,6 +28,7 @@
 #include "cloud_image.h"
 #include "aircraft.h"
 #include "clock_view.h"
+#include "home_view.h"
 #include "intel_view.h"
 #include "ticker_view.h"
 #include "ticker.h"
@@ -621,7 +622,7 @@ static void sim_apply_home_location(const char *name, double lat, double lon) {
 // hardware this desktop build doesn't have, so it gets a plain placeholder screen
 // for now (Phase 3 will bring it in via the host_* stub pattern).
 static void sim_register_apps(lv_obj_t *radarScreen) {
-    clockview::init();
+    homeview::init();
     settingsview::init();
     lv_obj_t *survScreen = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(survScreen, lv_color_black(), 0);
@@ -630,7 +631,7 @@ static void sim_register_apps(lv_obj_t *radarScreen) {
     // Same lineup + same hidden-app subset as the device (custom_apps.h): every app
     // is registered so indices line up, but the ones a theme flash turns off are
     // skipped when the knob cycles the menu.
-    app_shell::add(clockview::screen(), theme_style::names().clock, nullptr, nullptr, false, clockview::onEnter, clockview::onExit, !theme_style::apps().clock);   // the clock answers neither a turn nor a press; it does take and give back its canvas
+    app_shell::add(homeview::screen(), "HOME", nullptr, nullptr, false, homeview::onEnter, homeview::onExit, false);   // OrbBuddy HOME occupies APP_CLOCK
     // Exact same knob state machine as the device (main.cpp) — both wire the
     // shared radar::knob* handlers, so the simulator and Orb behave identically:
     // default view (knob released, a turn opens the switcher), push to enter
