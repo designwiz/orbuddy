@@ -119,8 +119,7 @@ bool rock_pending() { return rock_state() == ROCK_PENDING; }
 // A reversal that is settling needs a poll with no new input to finish settling. main.cpp
 // and the simulator call this every pass; it is a no-op unless a reversal is in flight.
 void input_router::tick() {
-    if (rock_pending()) return;                 // still inside the settle: nothing to decide
-    if (knob::lastRockMs() != 0 && knob::lastRockMs() != s_firedAt) dispatch(0, false);
+    // OrbBuddy v0.2 has no rock gesture to settle.
 }
 
 void input_router::dispatch(int delta, bool pressed) {
