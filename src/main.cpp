@@ -50,7 +50,8 @@
 #include "diag_log.h"                // RTC-memory event ring buffer, survives a reboot
 #include "sdcard.h"                  // microSD (TF) slot, SPI mode
 #include "roads_sd.h"                // worldwide roads read off the SD card
-#include "clock_view.h"              // clock app (app two)
+#include "clock_view.h"              // retained for legacy/theme clock support
+#include "home_view.h"               // OrbBuddy HOME — boot app in APP_CLOCK slot
 #include "weather_view.h"           // animated weather-radar app (knob channel)
 #include "settings_view.h"          // settings app (menu; captures the knob)
 #include "custom_boot_target.h"       // CUSTOM_BOOT_TARGET — set by whichever Launch Kit push (clock/splash/radar) ran last
@@ -2685,10 +2686,10 @@ void setup() {
     // is unchanged.
     lv_obj_t *radarScreen = lv_scr_act();
     psram_mark("after display+radar");
-    clockview::init();
-    psram_mark("after clockview");
-    // onEnter takes the canvas, onExit gives it back. It answers neither a turn nor a press.
-    app_shell::add(clockview::screen(), theme_style::names().clock, nullptr, nullptr, false, clockview::onEnter, clockview::onExit, !theme_style::apps().clock);
+    homeview::init();
+    psram_mark("after homeview");
+    // OrbBuddy HOME deliberately occupies APP_CLOCK so all existing boot/slot assumptions remain stable.
+    app_shell::add(homeview::screen(), "HOME", nullptr, nullptr, false, homeview::onEnter, homeview::onExit, false);
     app_shell::add(radarScreen, theme_style::names().flight, radar_press_custom_or_theme, radar_turn_select, false, radar_show_home_custom, radar_exit_release_style, !theme_style::apps().flight);
 #if !APPS_LAUNCH_ONE
     app_shell::add(radarScreen, theme_style::names().weather,  weather_press_cycle, nullptr, false, radar_show_weather, radar_hide_weather, !theme_style::apps().weather);
