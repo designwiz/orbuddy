@@ -52,8 +52,8 @@ namespace app_shell {
         APP_FLIGHT,      // OrbBuddy RADAR
         APP_TIMER,
         APP_MORE,
+        APP_SETTINGS,    // hidden full Settings, kept for Wi-Fi/setup flows
         APP_COUNT,
-        APP_SETTINGS = APP_COUNT, // hidden full Settings, outside the five-screen roster
     };
 
     // `hidden` apps stay registered (so app indices and selectApp(n) never shift)
