@@ -2707,6 +2707,9 @@ void setup() {
     // MORE is the glanceable status screen. Press opens the existing full Settings UI.
     app_shell::add(moreview::screen(), "MORE",
                    nullptr, nullptr, false, moreview::onEnter, nullptr, false);
+    app_shell::add(settingsview::screen(), "SETTINGS",
+                   settingsview::onPress, settingsview::onTurn, true,
+                   settingsview::onEnter, settingsview::onExit, true);
     // Before anything jumps to a slot by name. See app_shell::verifySlots(): the enum and
     // the registration order above have drifted apart twice, and both times the only
     // symptom was the wrong screen appearing with nothing said about it.
