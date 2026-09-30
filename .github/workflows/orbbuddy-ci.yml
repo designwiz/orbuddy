@@ -15,29 +15,63 @@ jobs:
           python-version: '3.12'
       - name: Install PlatformIO
         run: python -m pip install --upgrade platformio
-      - name: Build OrbBuddy firmware
-        run: pio run -e esp32-s3-amoled-175
-      - name: Verify application flash offset
+      - name: Build OrbBuddy for Waveshare factory layout
+        run: pio run -e esp32-s3-amoled-175-factory
+      - name: Verify factory application slot
         run: |
           python - <<'PY'
           import csv
           from pathlib import Path
 
-          p = Path("partitions_16MB_themeart.csv")
-          rows = list(csv.reader(line for line in p.read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")))
+          p = Path("partitions_16MB_waveshare_factory.csv")
+          rows = list(csv.reader(line for line in p.read_text().splitlines()
+                                 if line.strip() and not line.lstrip().startswith("#")))
           apps = [r for r in rows if len(r) >= 5 and r[1].strip() == "app"]
-          print("Application partitions:")
-          for r in apps:
-              print(f"  {r[0].strip()}: offset={r[3].strip()} size={r[4].strip()}")
-          if not apps:
-              raise SystemExit("No application partition found")
-          first = int(apps[0][3].strip(), 0)
-          if first != 0x10000:
-              raise SystemExit(f"Unexpected first app offset: 0x{first:x}")
-          print("Verified first application offset: 0x10000")
+          if len(apps) != 1:
+              raise SystemExit(f"Expected exactly one app partition, found {len(apps)}")
+
+          app = apps[0]
+          offset = int(app[3].strip(), 0)
+          size = int(app[4].strip(), 0)
+          if app[0].strip() != "factory" or app[2].strip() != "factory":
+              raise SystemExit(f"Unexpected app definition: {app}")
+          if offset != 0x200000:
+              raise SystemExit(f"Unsafe app offset: 0x{offset:x}; expected 0x200000")
+          if size != 0x800000:
+              raise SystemExit(f"Unsafe app size: 0x{size:x}; expected 0x800000")
+
+          fw = Path(".pio/build/esp32-s3-amoled-175-factory/firmware.bin")
+          fw_size = fw.stat().st_size
+          if fw_size > size:
+              raise SystemExit(f"Firmware {fw_size} bytes exceeds 8 MB factory slot")
+
+          print(f"Verified factory app offset: 0x{offset:x}")
+          print(f"Verified factory app size:   0x{size:x}")
+          print(f"OrbBuddy firmware size:      {fw_size} bytes")
+          print("FLASH TARGET: firmware.bin -> 0x200000")
           PY
-      - name: Upload application firmware only
+      - name: Write flash manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          fw = Path(".pio/build/esp32-s3-amoled-175-factory/firmware.bin")
+          digest = hashlib.sha256(fw.read_bytes()).hexdigest()
+          Path("FLASH-MANIFEST.txt").write_text(
+              "OrbBuddy v0.1 - WAVESHARE FACTORY LAYOUT - APP ONLY\n"
+              "Flash file: firmware.bin\n"
+              "Flash address: 0x200000\n"
+              f"Size: {fw.stat().st_size} bytes\n"
+              f"SHA-256: {digest}\n"
+              "DO NOT flash this firmware.bin at 0x0000 or 0x10000.\n"
+              "Do not erase or replace the bootloader/partition table.\n"
+          )
+          PY
+      - name: Upload recovery-safe application artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OrbBuddy-v0.1-APP-ONLY
-          path: .pio/build/esp32-s3-amoled-175/firmware.bin
+          name: OrbBuddy-v0.1-WAVESHARE-APP-0x200000
+          path: |
+            .pio/build/esp32-s3-amoled-175-factory/firmware.bin
+            FLASH-MANIFEST.txt
