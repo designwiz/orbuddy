@@ -220,7 +220,21 @@ void input_router::dispatch(int delta, bool pressed) {
         return;
     }
 
-    if (delta != 0) app_shell::turnCurrent(delta);
+    // OrbBuddy navigation: the knob's default job is moving between screens.
+    // A screen only consumes rotation after it explicitly captures the knob (Settings,
+    // a timer editor, etc.). This removes the old rock-then-browse-then-commit ceremony
+    // from ordinary navigation: one detent means one screen.
+    if (delta != 0) {
+        if (app_shell::captured()) {
+            app_shell::turnCurrent(delta);
+        } else {
+            const int steps = delta < 0 ? -delta : delta;
+            for (int i = 0; i < steps; ++i) {
+                if (delta > 0) app_shell::next();
+                else           app_shell::prev();
+            }
+        }
+    }
     // A press the current screen had no use for is not nothing happening, it is somebody
     // asking what this control does. The clock is the case that matters: it registers no
     // press handler, so on the first screen a new Orb ever shows, the most obvious thing to
