@@ -330,14 +330,11 @@ void app_shell::turnCurrent(int delta) {
 bool app_shell::verifySlots(lv_obj_t *settingsScreen) {
     bool ok = true;
 
-    // OrbBuddy keeps one hidden Settings screen after the five visible slots so
-    // first-boot Wi-Fi and recovery flows remain available without polluting navigation.
-    const int expectedCount = APP_COUNT + 1;
-    if (s_count != expectedCount) {
-        Serial.printf("[shell] SLOT TABLE IS WRONG: %d apps registered, expected %d. "
+    if (s_count != APP_COUNT) {
+        Serial.printf("[shell] SLOT TABLE IS WRONG: %d apps registered, enum names %d. "
                       "An app was added to main.cpp/sim_main.cpp without a Slot entry in "
                       "app_shell.h, so every selectApp() at or past the insertion point "
-                      "goes to the wrong screen.\n", s_count, expectedCount);
+                      "goes to the wrong screen.\n", s_count, (int)APP_COUNT);
         ok = false;
     }
 
