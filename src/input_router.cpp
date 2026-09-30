@@ -166,14 +166,9 @@ void input_router::dispatch(int delta, bool pressed) {
     // free to keep meaning "open the app menu" here as everywhere else. Without that, a
     // theme could strand somebody on a screen that will not take no for an answer, which is
     // the thing CUT-05 exists to forbid.
-    // The reversal, settled or not. While it settles the detents are held; when it turns
-    // out to be a scroll they are let through with this poll's, and when it is a rock they
-    // are dropped, because the detents that MADE the gesture are not input to the app.
-    const Rock rock = rock_state();
-    if (rock == ROCK_PENDING) { s_held += delta; delta = 0; }
-    else if (rock == ROCK_REJECT) { delta += s_held; s_held = 0; }
-    else if (rock == ROCK_FIRE) { s_held = 0; }
-
+    // OrbBuddy v0.2 deliberately drops the old rock gesture. Navigation should
+    // be discoverable: turn = next/previous screen; captured screens own the turn.
+    const Rock rock = ROCK_NONE;
     if (wind_notice::showing()) {
         if (rock == ROCK_FIRE) { app_shell::openSwitcher(); return; }
         if (delta != 0) wind_notice::turn(delta);
@@ -215,11 +210,6 @@ void input_router::dispatch(int delta, bool pressed) {
     // Safe to allow: load() sets the captured flag from the app being entered and runs the
     // outgoing app's exit hook on every real switch, so a screen rocked out of leaves neither
     // its capture nor its state behind.
-    if (rock == ROCK_FIRE) {
-        app_shell::openSwitcher();
-        return;
-    }
-
     // OrbBuddy navigation: the knob's default job is moving between screens.
     // A screen only consumes rotation after it explicitly captures the knob (Settings,
     // a timer editor, etc.). This removes the old rock-then-browse-then-commit ceremony
