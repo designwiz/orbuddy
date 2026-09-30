@@ -1,0 +1,11 @@
+# Waveshare factory-compatible 16 MB partition table for OrbBuddy recovery-safe builds.
+# Matches the partition table observed from the known-good Waveshare bootloader.
+# IMPORTANT: application-only flashing uses the factory app slot at 0x200000.
+# Name,       Type, SubType, Offset,    Size,       Flags
+nvsfactory,   data, nvs,     0x9000,    0x32000,
+nvs,          data, nvs,     0x3B000,   0xD2000,
+otadata,      data, ota,     0x10D000,  0x2000,
+phy_init,     data, phy,     0x10F000,  0x1000,
+model,        data, 0x82,    0x110000,  0xF0000,
+factory,      app,  factory, 0x200000,  0x800000,
+storage,      data, 0x82,    0xA00000,  0x600000,
