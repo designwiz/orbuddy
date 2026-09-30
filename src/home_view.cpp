@@ -48,19 +48,19 @@ void homeview::init() {
     lv_obj_set_style_border_opa(ring, LV_OPA_40, 0);
 
     s_place = lv_label_create(s_screen);
-    lv_label_set_text(s_place, "ORBBUDDY");
+    lv_label_set_text(s_place, "WESTPORT");
     style_label(s_place, &lv_font_montserrat_18, 0x19D3C5);
-    lv_obj_align(s_place, LV_ALIGN_TOP_MID, 0, 72);
+    lv_obj_align(s_place, LV_ALIGN_TOP_MID, 0, 62);
 
     s_time = lv_label_create(s_screen);
     lv_label_set_text(s_time, "--:--");
     style_label(s_time, &lv_font_montserrat_48, 0xFFFFFF);
-    lv_obj_align(s_time, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_align(s_time, LV_ALIGN_CENTER, 0, -62);
 
     s_date = lv_label_create(s_screen);
     lv_label_set_text(s_date, "--- -- ---");
     style_label(s_date, &lv_font_montserrat_18, 0xA9B5B4);
-    lv_obj_align(s_date, LV_ALIGN_CENTER, 0, 4);
+    lv_obj_align(s_date, LV_ALIGN_CENTER, 0, -4);
 
     s_weather = lv_label_create(s_screen);
     lv_label_set_text(s_weather, "WEATHER --");
@@ -70,7 +70,7 @@ void homeview::init() {
     s_status = lv_label_create(s_screen);
     lv_label_set_text(s_status, "ORBBUDDY v0.1");
     style_label(s_status, &lv_font_montserrat_14, 0x687674);
-    lv_obj_align(s_status, LV_ALIGN_BOTTOM_MID, 0, -72);
+    lv_obj_align(s_status, LV_ALIGN_BOTTOM_MID, 0, -58);
 
     s_timer = lv_timer_create(tick, 1000, nullptr);
     lv_timer_pause(s_timer);
