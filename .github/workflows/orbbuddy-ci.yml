@@ -17,22 +17,27 @@ jobs:
         run: python -m pip install --upgrade platformio
       - name: Build OrbBuddy firmware
         run: pio run -e esp32-s3-amoled-175
-      - name: Create single full-flash image
+      - name: Verify application flash offset
         run: |
-          ESPTOOL="$HOME/.platformio/packages/tool-esptoolpy/esptool.py"
-          BUILD=".pio/build/esp32-s3-amoled-175"
-          BOOTAPP="$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin"
-          python "$ESPTOOL" --chip esp32s3 merge_bin -o "$BUILD/OrbBuddy-v0.1-full.bin" \
-            0x0000 "$BUILD/bootloader.bin" \
-            0x8000 "$BUILD/partitions.bin" \
-            0xe000 "$BOOTAPP" \
-            0x10000 "$BUILD/firmware.bin"
-      - name: Upload firmware
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+
+          p = Path("partitions_16MB_themeart.csv")
+          rows = list(csv.reader(line for line in p.read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")))
+          apps = [r for r in rows if len(r) >= 5 and r[1].strip() == "app"]
+          print("Application partitions:")
+          for r in apps:
+              print(f"  {r[0].strip()}: offset={r[3].strip()} size={r[4].strip()}")
+          if not apps:
+              raise SystemExit("No application partition found")
+          first = int(apps[0][3].strip(), 0)
+          if first != 0x10000:
+              raise SystemExit(f"Unexpected first app offset: 0x{first:x}")
+          print("Verified first application offset: 0x10000")
+          PY
+      - name: Upload application firmware only
         uses: actions/upload-artifact@v4
         with:
-          name: OrbBuddy-v0.1-firmware
-          path: |
-            .pio/build/esp32-s3-amoled-175/OrbBuddy-v0.1-full.bin
-            .pio/build/esp32-s3-amoled-175/firmware.bin
-            .pio/build/esp32-s3-amoled-175/bootloader.bin
-            .pio/build/esp32-s3-amoled-175/partitions.bin
+          name: OrbBuddy-v0.1-APP-ONLY
+          path: .pio/build/esp32-s3-amoled-175/firmware.bin
