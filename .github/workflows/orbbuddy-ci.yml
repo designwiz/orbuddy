@@ -19,25 +19,14 @@ jobs:
         run: pio run -e esp32-s3-amoled-175
       - name: Create single full-flash image
         run: |
-          python - <<'PY'
-          import json, pathlib, subprocess
-          env = "esp32-s3-amoled-175"
-          build = pathlib.Path(".pio/build") / env
-          data = json.loads((build / "idedata.json").read_text())
-          extra = data.get("extra", {})
-          flash_images = extra.get("flash_images", [])
-          if not flash_images:
-              raise SystemExit("PlatformIO idedata.json did not contain flash_images")
-          esptool = pathlib.Path.home() / ".platformio/packages/tool-esptoolpy/esptool.py"
-          cmd = ["python", str(esptool), "--chip", "esp32s3", "merge_bin", "-o", str(build / "OrbBuddy-v0.1-full.bin")]
-          for offset, image in flash_images:
-              p = pathlib.Path(image)
-              if not p.is_absolute():
-                  p = pathlib.Path.cwd() / p
-              cmd += [str(offset), str(p)]
-          print("Merging:", " ".join(cmd))
-          subprocess.check_call(cmd)
-          PY
+          ESPTOOL="$HOME/.platformio/packages/tool-esptoolpy/esptool.py"
+          BUILD=".pio/build/esp32-s3-amoled-175"
+          BOOTAPP="$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin"
+          python "$ESPTOOL" --chip esp32s3 merge_bin -o "$BUILD/OrbBuddy-v0.1-full.bin" \
+            0x0000 "$BUILD/bootloader.bin" \
+            0x8000 "$BUILD/partitions.bin" \
+            0xe000 "$BOOTAPP" \
+            0x10000 "$BUILD/firmware.bin"
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
