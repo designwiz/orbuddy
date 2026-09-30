@@ -51,7 +51,8 @@ namespace app_shell {
         APP_WEATHER,
         APP_FLIGHT,      // OrbBuddy RADAR
         APP_TIMER,
-        APP_SETTINGS,    // OrbBuddy MORE / full settings
+        APP_MORE,
+        APP_SETTINGS,    // hidden full Settings, kept for Wi-Fi/setup flows
         APP_COUNT,
     };
 
