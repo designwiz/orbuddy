@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.6
+  OrbBuddy Clean - M6.7
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -347,9 +347,9 @@ float radarBearing(float lat1,float lon1,float lat2,float lon2) {
   float b=atan2f(y,x)*57.2957795f; return b<0?b+360.0f:b;
 }
 String radarJsonString(const String &obj,const char *key) {
-  String needle=String("\\\"")+key+"\\\":"; int p=obj.indexOf(needle); if(p<0)return ""; p+=needle.length();
-  while(p<(int)obj.length() && (obj[p]==' '))p++; if(p>=(int)obj.length()||obj[p]!='\\\"')return ""; p++;
-  int e=obj.indexOf('\\\"',p); return e<0?"":obj.substring(p,e);
+  String needle=String("\"")+key+"\":"; int p=obj.indexOf(needle); if(p<0)return ""; p+=needle.length();
+  while(p<(int)obj.length() && (obj[p]==' '))p++; if(p>=(int)obj.length()||obj[p]!='\"')return ""; p++;
+  int e=obj.indexOf('\"',p); return e<0?"":obj.substring(p,e);
 }
 float radarJsonNumber(const String &obj,const char *key,float fallback=NAN) {
   String needle=String("\\\"")+key+"\\\":"; int p=obj.indexOf(needle); if(p<0)return fallback; p+=needle.length();
@@ -357,10 +357,10 @@ float radarJsonNumber(const String &obj,const char *key,float fallback=NAN) {
 }
 void fetchRadar() {
   if(WiFi.status()!=WL_CONNECTED)return;
-  HTTPClient http; String url=String("https://api.airplanes.live/v2/point/")+String(RADAR_LAT,4)+"/"+String(RADAR_LON,4)+"/"+RADAR_RANGE_NM;
+  HTTPClient http; String url=String("https://api.adsb.lol/v2/point/")+String(RADAR_LAT,4)+"/"+String(RADAR_LON,4)+"/"+RADAR_RANGE_NM;
   http.begin(url); http.setTimeout(2500); http.setUserAgent("OrbBuddy/1.0"); http.addHeader("Accept","application/json"); int code=http.GET();
   if(code==HTTP_CODE_OK){
-    String body=http.getString(); radarCount=0; int ap=body.indexOf("\\\"ac\\\":[");
+    String body=http.getString(); radarCount=0; int ap=body.indexOf("\"ac\":[");
     if(ap>=0){ int p=body.indexOf('{',ap); while(p>=0 && radarCount<RADAR_MAX_TARGETS){ int e=body.indexOf('}',p); if(e<0)break; String o=body.substring(p,e+1);
       float la=radarJsonNumber(o,"lat"), lo=radarJsonNumber(o,"lon");
       if(!isnan(la)&&!isnan(lo)){ RadarTarget &t=radarTargets[radarCount]; t.lat=la;t.lon=lo;t.altFt=radarJsonNumber(o,"alt_baro",0);t.track=radarJsonNumber(o,"track",0);t.flight=radarJsonString(o,"flight");t.flight.trim();t.reg=radarJsonString(o,"r");t.reg.trim();t.distNm=radarDistanceNm(RADAR_LAT,RADAR_LON,la,lo);t.bearing=radarBearing(RADAR_LAT,RADAR_LON,la,lo); String id=t.flight+" "+t.reg; id.toUpperCase(); t.rescue118=(id.indexOf("EI-IRT")>=0||id.indexOf("RESCUE118")>=0||id.indexOf("R118")>=0); radarCount++; }
@@ -463,7 +463,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.6");
+  Serial.println("OrbBuddy Clean M6.7");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
