@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.0
+  OrbBuddy Clean - M6.1
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -381,7 +381,6 @@ void drawScreen() {
     return;
   }
   if (currentScreen == RADAR) {
-    if (WiFi.status() == WL_CONNECTED && (!radarReady || millis() - lastRadarMs > 15000UL)) fetchRadar();
     drawRadar();
     return;
   }
@@ -451,7 +450,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.0");
+  Serial.println("OrbBuddy Clean M6.1");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -500,9 +499,10 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  if (currentScreen == RADAR && WiFi.status() == WL_CONNECTED && millis() - lastRadarMs > 15000UL) {
+  // Never perform a blocking HTTP request while the user is on RADAR.
+  // The old M6 path stalled knob handling while HTTPClient waited.
+  if (currentScreen != RADAR && WiFi.status() == WL_CONNECTED && (!radarReady || millis() - lastRadarMs > 15000UL)) {
     fetchRadar();
-    drawRadar();
   }
 
   static wl_status_t lastWiFiState = WL_IDLE_STATUS;
