@@ -1,11 +1,14 @@
 /*
-  OrbBuddy Clean - M5
+  OrbBuddy Clean - M5.1
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans18pt7b.h>
+#include <Fonts/FreeSans24pt7b.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
@@ -232,13 +235,9 @@ void fetchWeather() {
   http.end();
 }
 
-void drawHome() {
-  gfx->fillScreen(RGB565_BLACK);
-
-  gfx->setTextColor(RGB565_CYAN);
-  gfx->setTextSize(2);
-  gfx->setCursor(185, 60);
-  gfx->print("WESTPORT");
+void drawHomeDynamic() {
+  // Update only the changing middle of HOME. Never clear the whole AMOLED here.
+  gfx->fillRect(55, 105, 356, 225, RGB565_BLACK);
 
   struct tm t;
   bool haveTime = getLocalTime(&t, 10);
@@ -251,45 +250,66 @@ void drawHome() {
     timeReady = true;
   }
 
+  // Proper GFX fonts instead of magnifying the 5x7 bitmap font.
+  gfx->setFont(&FreeSans24pt7b);
   gfx->setTextColor(RGB565_WHITE);
-  gfx->setTextSize(7);
-  gfx->setCursor(112, 120);
+  int16_t x1, y1; uint16_t w, h;
+  gfx->getTextBounds(timeBuf, 0, 0, &x1, &y1, &w, &h);
+  gfx->setCursor((SCREEN_W - (int)w) / 2, 165);
   gfx->print(timeBuf);
 
+  gfx->setFont(&FreeSans12pt7b);
   gfx->setTextColor(RGB565_DARKGREY);
-  gfx->setTextSize(2);
-  int dateWidth = strlen(dateBuf) * 12;
-  gfx->setCursor((SCREEN_W - dateWidth) / 2, 190);
+  gfx->getTextBounds(dateBuf, 0, 0, &x1, &y1, &w, &h);
+  gfx->setCursor((SCREEN_W - (int)w) / 2, 205);
   gfx->print(dateBuf);
 
   if (weatherReady) {
     char tempBuf[12];
     snprintf(tempBuf, sizeof(tempBuf), "%.0f C", weatherTemp);
+    gfx->setFont(&FreeSans24pt7b);
     gfx->setTextColor(RGB565_CYAN);
-    gfx->setTextSize(5);
-    int tempWidth = strlen(tempBuf) * 30;
-    gfx->setCursor((SCREEN_W - tempWidth) / 2, 235);
+    gfx->getTextBounds(tempBuf, 0, 0, &x1, &y1, &w, &h);
+    gfx->setCursor((SCREEN_W - (int)w) / 2, 270);
     gfx->print(tempBuf);
 
     const char *desc = weatherText(weatherCode);
+    gfx->setFont(&FreeSans12pt7b);
     gfx->setTextColor(RGB565_WHITE);
-    gfx->setTextSize(2);
-    int descWidth = strlen(desc) * 12;
-    gfx->setCursor((SCREEN_W - descWidth) / 2, 300);
+    gfx->getTextBounds(desc, 0, 0, &x1, &y1, &w, &h);
+    gfx->setCursor((SCREEN_W - (int)w) / 2, 310);
     gfx->print(desc);
   } else {
+    gfx->setFont(&FreeSans12pt7b);
     gfx->setTextColor(RGB565_DARKGREY);
-    gfx->setTextSize(2);
     gfx->setCursor(145, 270);
     gfx->print("WEATHER SYNC");
   }
+  gfx->setFont(nullptr);
+}
 
+void drawHome() {
+  gfx->fillScreen(RGB565_BLACK);
+
+  gfx->setFont(&FreeSans12pt7b);
+  gfx->setTextColor(RGB565_CYAN);
+  int16_t x1, y1; uint16_t w, h;
+  const char *place = "WESTPORT";
+  gfx->getTextBounds(place, 0, 0, &x1, &y1, &w, &h);
+  gfx->setCursor((SCREEN_W - (int)w) / 2, 75);
+  gfx->print(place);
+  gfx->setFont(nullptr);
+
+  drawHomeDynamic();
+
+  gfx->setFont(&FreeSans12pt7b);
   gfx->setTextColor(WiFi.status() == WL_CONNECTED ? RGB565_GREEN : RGB565_DARKGREY);
-  gfx->setTextSize(2);
-  gfx->setCursor(173, 365);
-  gfx->print(WiFi.status() == WL_CONNECTED ? "WiFi  LIVE" : "WiFi  OFFLINE");
+  const char *net = WiFi.status() == WL_CONNECTED ? "WiFi  LIVE" : "WiFi  OFFLINE";
+  gfx->getTextBounds(net, 0, 0, &x1, &y1, &w, &h);
+  gfx->setCursor((SCREEN_W - (int)w) / 2, 375);
+  gfx->print(net);
+  gfx->setFont(nullptr);
 
-  // Home position marker: subtle cyan dot.
   gfx->fillCircle(233, 405, 4, RGB565_CYAN);
 }
 
@@ -364,7 +384,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5");
+  Serial.println("OrbBuddy Clean M5.1");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -439,7 +459,8 @@ void loop() {
 
     if (currentScreen == HOME && millis() - lastClockDrawMs > 1000UL) {
       lastClockDrawMs = millis();
-      drawHome();
+      // Only the clock/date/weather region changes. This removes the full-screen blink.
+      drawHomeDynamic();
     }
   }
 
