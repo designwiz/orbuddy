@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M5.7
+  OrbBuddy Clean - M5.8
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -238,56 +238,72 @@ void fetchWeather() {
   http.end();
 }
 
+void drawSegmentDigit(int x, int y, int digit, uint16_t color) {
+  // Smooth geometric seven-segment numerals: no font dependency, no pixelated scaling.
+  static const uint8_t segs[10] = {
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F
+  };
+  const int W=42, H=72, T=7, R=3;
+  uint8_t m = segs[digit];
+  if (m & 0x01) gfx->fillRoundRect(x+T, y, W-2*T, T, R, color);
+  if (m & 0x02) gfx->fillRoundRect(x+W-T, y+T, T, H/2-T, R, color);
+  if (m & 0x04) gfx->fillRoundRect(x+W-T, y+H/2, T, H/2-T, R, color);
+  if (m & 0x08) gfx->fillRoundRect(x+T, y+H-T, W-2*T, T, R, color);
+  if (m & 0x10) gfx->fillRoundRect(x, y+H/2, T, H/2-T, R, color);
+  if (m & 0x20) gfx->fillRoundRect(x, y+T, T, H/2-T, R, color);
+  if (m & 0x40) gfx->fillRoundRect(x+T, y+H/2-T/2, W-2*T, T, R, color);
+}
+
 void drawHomeDynamic() {
-  // HOME middle is redrawn only when its displayed values actually change.
-  // Clearing this region every second was the visible blink.
   gfx->fillRect(45, 100, 376, 240, RGB565_BLACK);
 
   struct tm t;
   bool haveTime = getLocalTime(&t, 10);
-  char timeBuf[6] = "--:--";
   char dateBuf[24] = "SYNCING TIME";
   if (haveTime) {
-    strftime(timeBuf, sizeof(timeBuf), "%H:%M", &t);
     strftime(dateBuf, sizeof(dateBuf), "%a %d %b", &t);
     for (char *p = dateBuf; *p; ++p) *p = toupper(*p);
     timeReady = true;
-  }
 
-  // Proper GFX fonts instead of magnifying the 5x7 bitmap font.
-  // Built-in font: keep it clean and proportioned; no huge blocky scaling.
-  gfx->setFont(); gfx->setTextSize(4);
-  gfx->setTextColor(RGB565_WHITE);
-  int16_t x1, y1; uint16_t w, h;
-  gfx->getTextBounds(timeBuf, 0, 0, &x1, &y1, &w, &h);
-  gfx->setCursor((SCREEN_W - (int)w) / 2, 160);
-  gfx->print(timeBuf);
+    int hh=t.tm_hour, mm=t.tm_min;
+    const int y=112, gap=7, colonW=18;
+    const int total=42*4 + gap*3 + colonW;
+    int x=(SCREEN_W-total)/2;
+    drawSegmentDigit(x,y,hh/10,RGB565_WHITE); x+=42+gap;
+    drawSegmentDigit(x,y,hh%10,RGB565_WHITE); x+=42+gap;
+    gfx->fillCircle(x+5,y+25,4,RGB565_CYAN);
+    gfx->fillCircle(x+5,y+49,4,RGB565_CYAN);
+    x+=colonW+gap;
+    drawSegmentDigit(x,y,mm/10,RGB565_WHITE); x+=42+gap;
+    drawSegmentDigit(x,y,mm%10,RGB565_WHITE);
+  }
 
   gfx->setFont(); gfx->setTextSize(2);
   gfx->setTextColor(RGB565_DARKGREY);
-  gfx->getTextBounds(dateBuf, 0, 0, &x1, &y1, &w, &h);
-  gfx->setCursor((SCREEN_W - (int)w) / 2, 205);
+  int16_t x1,y1; uint16_t w,h;
+  gfx->getTextBounds(dateBuf,0,0,&x1,&y1,&w,&h);
+  gfx->setCursor((SCREEN_W-(int)w)/2,205);
   gfx->print(dateBuf);
 
   if (weatherReady) {
     char tempBuf[12];
-    snprintf(tempBuf, sizeof(tempBuf), "%.0f C", weatherTemp);
-    gfx->setFont(); gfx->setTextSize(4);
+    snprintf(tempBuf,sizeof(tempBuf),"%.0f C",weatherTemp);
     gfx->setTextColor(RGB565_CYAN);
-    gfx->getTextBounds(tempBuf, 0, 0, &x1, &y1, &w, &h);
-    gfx->setCursor((SCREEN_W - (int)w) / 2, 270);
+    gfx->setTextSize(3);
+    gfx->getTextBounds(tempBuf,0,0,&x1,&y1,&w,&h);
+    gfx->setCursor((SCREEN_W-(int)w)/2,255);
     gfx->print(tempBuf);
 
-    const char *desc = weatherText(weatherCode);
-    gfx->setFont(); gfx->setTextSize(2);
+    const char *desc=weatherText(weatherCode);
     gfx->setTextColor(RGB565_WHITE);
-    gfx->getTextBounds(desc, 0, 0, &x1, &y1, &w, &h);
-    gfx->setCursor((SCREEN_W - (int)w) / 2, 310);
+    gfx->setTextSize(2);
+    gfx->getTextBounds(desc,0,0,&x1,&y1,&w,&h);
+    gfx->setCursor((SCREEN_W-(int)w)/2,300);
     gfx->print(desc);
   } else {
-    gfx->setFont(); gfx->setTextSize(2);
     gfx->setTextColor(RGB565_DARKGREY);
-    gfx->setCursor(145, 270);
+    gfx->setTextSize(2);
+    gfx->setCursor(145,270);
     gfx->print("WEATHER SYNC");
   }
   gfx->setFont();
@@ -392,7 +408,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.7");
+  Serial.println("OrbBuddy Clean M5.8");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
