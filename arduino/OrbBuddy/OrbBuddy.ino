@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.7
+  OrbBuddy Clean - M6.8
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -370,22 +370,63 @@ void fetchRadar() {
 }
 void drawRadar(){
   gfx->fillScreen(RGB565_BLACK);
-  const int cx=233,cy=238,R=145;
-  // Use colours already proven visible on this panel; no custom RGB565 values.
-  gfx->setFont();gfx->setTextSize(2);gfx->setTextColor(RGB565_GREEN);gfx->setCursor(196,42);gfx->print("RADAR");
-  gfx->setTextSize(1);gfx->setTextColor(RGB565_CYAN);gfx->setCursor(216,66);gfx->print("35 NM");
-  // Triple-draw grid so the AMOLED cannot swallow one-pixel geometry.
-  for(int d=-1;d<=1;d++){
-    gfx->drawCircle(cx,cy,R+d,RGB565_CYAN);gfx->drawCircle(cx,cy,96+d,RGB565_CYAN);gfx->drawCircle(cx,cy,48+d,RGB565_CYAN);
-    gfx->drawFastHLine(cx-R,cy+d,R*2,RGB565_CYAN);gfx->drawFastVLine(cx+d,cy-R,R*2,RGB565_CYAN);
-  }
-  gfx->setTextColor(RGB565_WHITE);gfx->setTextSize(1);
-  gfx->setCursor(cx-3,cy-R-15);gfx->print("N");gfx->setCursor(cx-3,cy+R+8);gfx->print("S");gfx->setCursor(cx+R+8,cy-3);gfx->print("E");gfx->setCursor(cx-R-14,cy-3);gfx->print("W");
-  gfx->setTextColor(RGB565_CYAN);gfx->setCursor(cx+51,cy+6);gfx->print("12");gfx->setCursor(cx+99,cy+6);gfx->print("23");gfx->fillCircle(cx,cy,6,RGB565_WHITE);
+  const int cx=233, cy=238;
+  // M6.8: avoid CO5300 outline/line primitives entirely.
+  // Build the radar face only from filled primitives already proven visible.
+  gfx->setFont(); gfx->setTextSize(2); gfx->setTextColor(RGB565_GREEN);
+  gfx->setCursor(196,42); gfx->print("RADAR");
+  gfx->setTextColor(RGB565_CYAN); gfx->setTextSize(2);
+  gfx->setCursor(202,68); gfx->print("35 NM");
+
+  // Concentric 4 px annuli: fillCircle is known-good on this panel.
+  gfx->fillCircle(cx,cy,145,RGB565_CYAN); gfx->fillCircle(cx,cy,140,RGB565_BLACK);
+  gfx->fillCircle(cx,cy,96, RGB565_CYAN); gfx->fillCircle(cx,cy,91, RGB565_BLACK);
+  gfx->fillCircle(cx,cy,48, RGB565_CYAN); gfx->fillCircle(cx,cy,43, RGB565_BLACK);
+
+  // Crosshair via filled rectangles, not drawFastH/VLine.
+  gfx->fillRect(cx-140,cy-2,280,5,RGB565_CYAN);
+  gfx->fillRect(cx-2,cy-140,5,280,RGB565_CYAN);
+
+  gfx->setTextColor(RGB565_WHITE); gfx->setTextSize(2);
+  gfx->setCursor(cx-6,82);  gfx->print("N");
+  gfx->setCursor(cx-6,386); gfx->print("S");
+  gfx->setCursor(386,cy-8); gfx->print("E");
+  gfx->setCursor(66, cy-8); gfx->print("W");
+
+  // Repaint centre over crosshair.
+  gfx->fillCircle(cx,cy,8,RGB565_WHITE);
+  gfx->fillCircle(cx,cy,3,RGB565_BLACK);
+
   bool rescue=false;
-  for(int i=0;i<radarCount;i++){RadarTarget&t=radarTargets[i];if(t.distNm>RADAR_RANGE_NM)continue;float rr=(t.distNm/(float)RADAR_RANGE_NM)*R,a=radarRad(t.bearing-90.0f);int x=cx+(int)(cosf(a)*rr),y=cy+(int)(sinf(a)*rr);uint16_t c=t.rescue118?RGB565_RED:RGB565_GREEN;gfx->fillCircle(x,y,t.rescue118?8:6,c);String label=t.flight.length()?t.flight:t.reg;if(label.length()){if(label.length()>8)label=label.substring(0,8);gfx->setTextColor(c);gfx->setTextSize(1);gfx->setCursor(x>350?x-55:x+9,y-4);gfx->print(label);}if(t.rescue118)rescue=true;}
-  gfx->setTextSize(1);gfx->setTextColor(RGB565_WHITE);char status[42];if(radarReady)snprintf(status,sizeof(status),"%d AIRCRAFT   35 NM",radarCount);else if(lastRadarHttp==403) snprintf(status,sizeof(status),"RADAR FEED BLOCKED 403"); else snprintf(status,sizeof(status),"RADAR SYNCING");int16_t x1,y1;uint16_t w,h;gfx->getTextBounds(status,0,0,&x1,&y1,&w,&h);gfx->setCursor((SCREEN_W-(int)w)/2,420);gfx->print(status);
-  if(rescue){gfx->fillRoundRect(102,84,262,36,10,RGB565_RED);gfx->setTextColor(RGB565_WHITE);gfx->setTextSize(2);gfx->setCursor(126,96);gfx->print("RESCUE 118 NEARBY");}
+  for(int i=0;i<radarCount;i++){
+    RadarTarget&t=radarTargets[i]; if(t.distNm>RADAR_RANGE_NM) continue;
+    float rr=(t.distNm/(float)RADAR_RANGE_NM)*140.0f;
+    float a=radarRad(t.bearing-90.0f);
+    int x=cx+(int)(cosf(a)*rr), y=cy+(int)(sinf(a)*rr);
+    uint16_t col=t.rescue118?RGB565_RED:RGB565_GREEN;
+    gfx->fillCircle(x,y,t.rescue118?9:7,col);
+    String label=t.flight.length()?t.flight:t.reg;
+    if(label.length()){
+      if(label.length()>8) label=label.substring(0,8);
+      gfx->setTextColor(col); gfx->setTextSize(1);
+      gfx->setCursor(x>340?x-55:x+10,y-4); gfx->print(label);
+    }
+    if(t.rescue118) rescue=true;
+  }
+
+  gfx->setTextSize(1); gfx->setTextColor(RGB565_WHITE);
+  char status[42];
+  if(radarReady) snprintf(status,sizeof(status),"%d AIRCRAFT / 35 NM",radarCount);
+  else if(lastRadarHttp) snprintf(status,sizeof(status),"RADAR HTTP %d",lastRadarHttp);
+  else snprintf(status,sizeof(status),"RADAR SYNCING");
+  int16_t x1,y1; uint16_t w,h; gfx->getTextBounds(status,0,0,&x1,&y1,&w,&h);
+  gfx->setCursor((SCREEN_W-(int)w)/2,414); gfx->print(status);
+
+  if(rescue){
+    gfx->fillRoundRect(102,112,262,36,10,RGB565_RED);
+    gfx->setTextColor(RGB565_WHITE); gfx->setTextSize(2);
+    gfx->setCursor(126,124); gfx->print("RESCUE 118 NEARBY");
+  }
 }
 
 void drawScreen() {
@@ -463,7 +504,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.7");
+  Serial.println("OrbBuddy Clean M6.8");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
