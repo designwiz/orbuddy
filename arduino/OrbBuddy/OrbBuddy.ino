@@ -44,11 +44,6 @@ static bool lastButton = HIGH;
 static uint32_t lastButtonMs = 0;
 static uint32_t selectFlashUntil = 0;
 
-static volatile int32_t rawPos = 0;
-static volatile int32_t anchor = 0;
-static volatile int32_t detent = 0;
-static volatile uint8_t prevAB = 0;
-
 static const int8_t quadTable[16] = {
    0, -1,  1,  0,
    1,  0,  0, -1,
