@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M5.4
+  OrbBuddy Clean - M5.5
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -192,7 +192,8 @@ const char *weatherText(int code) {
 }
 
 void beginClock() {
-  setenv("TZ", "GMT0IST,M3.5.0/1,M10.5.0", 1);
+  // Ireland: UTC in winter, UTC+1 (IST) from last Sunday in March to last Sunday in October.
+  setenv("TZ", "GMT0IST,M3.5.0/1,M10.5.0/2", 1);
   tzset();
   configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
 
@@ -212,8 +213,11 @@ void fetchWeather() {
 
   if (code == HTTP_CODE_OK) {
     String body = http.getString();
-    int tPos = body.indexOf("\"temperature_2m\":");
-    int wPos = body.indexOf("\"weather_code\":");
+    // The same keys also exist in current_units. Search only inside
+    // the actual "current" object or the unit strings parse as 0.
+    int currentPos = body.indexOf("\"current\":");
+    int tPos = currentPos >= 0 ? body.indexOf("\"temperature_2m\":", currentPos) : -1;
+    int wPos = currentPos >= 0 ? body.indexOf("\"weather_code\":", currentPos) : -1;
 
     if (tPos >= 0 && wPos >= 0) {
       tPos += 17;
@@ -389,7 +393,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.4");
+  Serial.println("OrbBuddy Clean M5.5");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
