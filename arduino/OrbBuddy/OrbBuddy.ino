@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.4
+  OrbBuddy Clean - M6.5
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -59,6 +59,8 @@ static RadarTarget radarTargets[RADAR_MAX_TARGETS];
 static int radarCount = 0;
 static bool radarReady = false;
 static uint32_t lastRadarMs = 0;
+static uint32_t nextRadarAttemptMs = 0;
+static int lastRadarHttp = 0;
 
 static volatile int32_t rawPos = 0;
 static volatile int32_t anchor = 0;
@@ -356,7 +358,7 @@ float radarJsonNumber(const String &obj,const char *key,float fallback=NAN) {
 void fetchRadar() {
   if(WiFi.status()!=WL_CONNECTED)return;
   HTTPClient http; String url=String("https://api.airplanes.live/v2/point/")+String(RADAR_LAT,4)+"/"+String(RADAR_LON,4)+"/"+RADAR_RANGE_NM;
-  http.begin(url); http.setTimeout(7000); int code=http.GET();
+  http.begin(url); http.setTimeout(2500); http.setUserAgent("OrbBuddy/1.0"); http.addHeader("Accept","application/json"); int code=http.GET();
   if(code==HTTP_CODE_OK){
     String body=http.getString(); radarCount=0; int ap=body.indexOf("\\\"ac\\\":[");
     if(ap>=0){ int p=body.indexOf('{',ap); while(p>=0 && radarCount<RADAR_MAX_TARGETS){ int e=body.indexOf('}',p); if(e<0)break; String o=body.substring(p,e+1);
@@ -364,7 +366,7 @@ void fetchRadar() {
       if(!isnan(la)&&!isnan(lo)){ RadarTarget &t=radarTargets[radarCount]; t.lat=la;t.lon=lo;t.altFt=radarJsonNumber(o,"alt_baro",0);t.track=radarJsonNumber(o,"track",0);t.flight=radarJsonString(o,"flight");t.flight.trim();t.reg=radarJsonString(o,"r");t.reg.trim();t.distNm=radarDistanceNm(RADAR_LAT,RADAR_LON,la,lo);t.bearing=radarBearing(RADAR_LAT,RADAR_LON,la,lo); String id=t.flight+" "+t.reg; id.toUpperCase(); t.rescue118=(id.indexOf("EI-IRT")>=0||id.indexOf("RESCUE118")>=0||id.indexOf("R118")>=0); radarCount++; }
       p=body.indexOf('{',e+1); int end=body.indexOf(']',e+1); if(end>=0 && (p<0||end<p))break;
     }} radarReady=true;lastRadarMs=millis();Serial.printf("[radar] %d aircraft within %d nm\\n",radarCount,RADAR_RANGE_NM);
-  } else Serial.printf("[radar] HTTP %d\\n",code); http.end();
+  } else { lastRadarHttp=code; nextRadarAttemptMs=millis()+60000UL; Serial.printf("[radar] HTTP %d\\n",code); } http.end();
 }
 void drawRadar(){
   gfx->fillScreen(RGB565_BLACK);
@@ -382,7 +384,7 @@ void drawRadar(){
   gfx->setTextColor(RGB565_CYAN);gfx->setCursor(cx+51,cy+6);gfx->print("12");gfx->setCursor(cx+99,cy+6);gfx->print("23");gfx->fillCircle(cx,cy,6,RGB565_WHITE);
   bool rescue=false;
   for(int i=0;i<radarCount;i++){RadarTarget&t=radarTargets[i];if(t.distNm>RADAR_RANGE_NM)continue;float rr=(t.distNm/(float)RADAR_RANGE_NM)*R,a=radarRad(t.bearing-90.0f);int x=cx+(int)(cosf(a)*rr),y=cy+(int)(sinf(a)*rr);uint16_t c=t.rescue118?RGB565_RED:RGB565_GREEN;gfx->fillCircle(x,y,t.rescue118?8:6,c);String label=t.flight.length()?t.flight:t.reg;if(label.length()){if(label.length()>8)label=label.substring(0,8);gfx->setTextColor(c);gfx->setTextSize(1);gfx->setCursor(x>350?x-55:x+9,y-4);gfx->print(label);}if(t.rescue118)rescue=true;}
-  gfx->setTextSize(1);gfx->setTextColor(RGB565_WHITE);char status[42];if(radarReady)snprintf(status,sizeof(status),"%d AIRCRAFT   35 NM",radarCount);else snprintf(status,sizeof(status),"RADAR SYNCING");int16_t x1,y1;uint16_t w,h;gfx->getTextBounds(status,0,0,&x1,&y1,&w,&h);gfx->setCursor((SCREEN_W-(int)w)/2,420);gfx->print(status);
+  gfx->setTextSize(1);gfx->setTextColor(RGB565_WHITE);char status[42];if(radarReady)snprintf(status,sizeof(status),"%d AIRCRAFT   35 NM",radarCount);else if(lastRadarHttp==403) snprintf(status,sizeof(status),"RADAR FEED BLOCKED 403"); else snprintf(status,sizeof(status),"RADAR SYNCING");int16_t x1,y1;uint16_t w,h;gfx->getTextBounds(status,0,0,&x1,&y1,&w,&h);gfx->setCursor((SCREEN_W-(int)w)/2,420);gfx->print(status);
   if(rescue){gfx->fillRoundRect(102,84,262,36,10,RGB565_RED);gfx->setTextColor(RGB565_WHITE);gfx->setTextSize(2);gfx->setCursor(126,96);gfx->print("RESCUE 118 NEARBY");}
 }
 
@@ -461,7 +463,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.4");
+  Serial.println("OrbBuddy Clean M6.5");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -512,7 +514,8 @@ void loop() {
 
   // Never perform a blocking HTTP request while the user is on RADAR.
   // The old M6 path stalled knob handling while HTTPClient waited.
-  if (currentScreen != RADAR && WiFi.status() == WL_CONNECTED && (!radarReady || millis() - lastRadarMs > 15000UL)) {
+  if (currentScreen != RADAR && WiFi.status() == WL_CONNECTED && millis() >= nextRadarAttemptMs && (!radarReady || millis() - lastRadarMs > 15000UL)) {
+    nextRadarAttemptMs = millis() + 15000UL;
     fetchRadar();
   }
 
