@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M5.3
+  OrbBuddy Clean - M5.4
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -45,6 +45,8 @@ static float weatherTemp = 0.0f;
 static int weatherCode = -1;
 static uint32_t lastWeatherMs = 0;
 static uint32_t lastClockDrawMs = 0;
+static int lastDrawnMinute = -1;
+static bool homeDynamicDirty = true;
 
 static volatile int32_t rawPos = 0;
 static volatile int32_t anchor = 0;
@@ -234,8 +236,9 @@ void fetchWeather() {
 }
 
 void drawHomeDynamic() {
-  // Update only the changing middle of HOME. Never clear the whole AMOLED here.
-  gfx->fillRect(55, 105, 356, 225, RGB565_BLACK);
+  // HOME middle is redrawn only when its displayed values actually change.
+  // Clearing this region every second was the visible blink.
+  gfx->fillRect(45, 100, 376, 240, RGB565_BLACK);
 
   struct tm t;
   bool haveTime = getLocalTime(&t, 10);
@@ -249,11 +252,12 @@ void drawHomeDynamic() {
   }
 
   // Proper GFX fonts instead of magnifying the 5x7 bitmap font.
-  gfx->setFont(); gfx->setTextSize(5);
+  // Built-in font: keep it clean and proportioned; no huge blocky scaling.
+  gfx->setFont(); gfx->setTextSize(4);
   gfx->setTextColor(RGB565_WHITE);
   int16_t x1, y1; uint16_t w, h;
   gfx->getTextBounds(timeBuf, 0, 0, &x1, &y1, &w, &h);
-  gfx->setCursor((SCREEN_W - (int)w) / 2, 165);
+  gfx->setCursor((SCREEN_W - (int)w) / 2, 160);
   gfx->print(timeBuf);
 
   gfx->setFont(); gfx->setTextSize(2);
@@ -265,7 +269,7 @@ void drawHomeDynamic() {
   if (weatherReady) {
     char tempBuf[12];
     snprintf(tempBuf, sizeof(tempBuf), "%.0f C", weatherTemp);
-    gfx->setFont(); gfx->setTextSize(5);
+    gfx->setFont(); gfx->setTextSize(4);
     gfx->setTextColor(RGB565_CYAN);
     gfx->getTextBounds(tempBuf, 0, 0, &x1, &y1, &w, &h);
     gfx->setCursor((SCREEN_W - (int)w) / 2, 270);
@@ -299,6 +303,9 @@ void drawHome() {
   gfx->setFont();
 
   drawHomeDynamic();
+  struct tm homeTm;
+  if (getLocalTime(&homeTm, 10)) lastDrawnMinute = homeTm.tm_min;
+  homeDynamicDirty = false;
 
   gfx->setFont(); gfx->setTextSize(2);
   gfx->setTextColor(WiFi.status() == WL_CONNECTED ? RGB565_GREEN : RGB565_DARKGREY);
@@ -382,7 +389,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.3");
+  Serial.println("OrbBuddy Clean M5.4");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -452,13 +459,20 @@ void loop() {
 
     if (!weatherReady || millis() - lastWeatherMs > 900000UL) {
       fetchWeather();
-      if (currentScreen == HOME) drawScreen();
+      homeDynamicDirty = true;
+      if (currentScreen == HOME) drawHomeDynamic();
     }
 
     if (currentScreen == HOME && millis() - lastClockDrawMs > 1000UL) {
       lastClockDrawMs = millis();
-      // Only the clock/date/weather region changes. This removes the full-screen blink.
-      drawHomeDynamic();
+      struct tm t;
+      if (getLocalTime(&t, 10)) {
+        if (t.tm_min != lastDrawnMinute || homeDynamicDirty) {
+          lastDrawnMinute = t.tm_min;
+          homeDynamicDirty = false;
+          drawHomeDynamic();
+        }
+      }
     }
   }
 
