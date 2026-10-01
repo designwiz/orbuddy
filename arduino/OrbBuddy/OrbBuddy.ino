@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M5.6
+  OrbBuddy Clean - M5.7
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -192,10 +192,9 @@ const char *weatherText(int code) {
 }
 
 void beginClock() {
-  // Ireland: UTC in winter, UTC+1 (IST) from last Sunday in March to last Sunday in October.
-  setenv("TZ", "GMT0IST-1,M3.5.0/1,M10.5.0/2", 1);
-  tzset();
-  configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+  // Let SNTP apply the Irish POSIX timezone directly. configTime() was
+  // overwriting the TZ environment when called after setenv()/tzset().
+  configTzTime("GMT0IST,M3.5.0/1,M10.5.0/2", "pool.ntp.org", "time.cloudflare.com");
 
   struct tm t;
   timeReady = getLocalTime(&t, 5000);
@@ -393,7 +392,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.6");
+  Serial.println("OrbBuddy Clean M5.7");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
