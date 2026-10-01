@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.2
+  OrbBuddy Clean - M6.3
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -369,7 +369,7 @@ void fetchRadar() {
 void drawRadar(){
   gfx->fillScreen(RGB565_BLACK);
   const int cx=233, cy=238, R=150;
-  const uint16_t grid=RGB565(45,70,70);
+  const uint16_t grid=RGB565(0,180,180);
 
   // Clean radar face: brighter rings, cardinal marks and range labels.
   gfx->setFont(); gfx->setTextSize(2); gfx->setTextColor(RGB565_GREEN);
@@ -408,7 +408,7 @@ void drawRadar(){
   }
 
   // Bottom status is deliberately outside the radar plot.
-  gfx->fillRoundRect(113,410,240,30,10,RGB565(15,25,25));
+  gfx->drawRoundRect(113,410,240,30,10,RGB565_DARKGREY);
   gfx->setTextSize(1); gfx->setTextColor(radarReady?RGB565_WHITE:RGB565_DARKGREY);
   if(radarReady){ char b[40]; snprintf(b,sizeof(b),"%d AIRCRAFT   UPDATE 15s",radarCount); int16_t x1,y1;uint16_t w,h;gfx->getTextBounds(b,0,0,&x1,&y1,&w,&h);gfx->setCursor((SCREEN_W-(int)w)/2,421);gfx->print(b); }
   else { gfx->setCursor(194,421); gfx->print("SYNCING"); }
@@ -491,7 +491,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.2");
+  Serial.println("OrbBuddy Clean M6.3");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
