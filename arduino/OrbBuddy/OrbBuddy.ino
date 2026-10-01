@@ -1,11 +1,12 @@
 /*
-  OrbBuddy Clean - M5.8
+  OrbBuddy Clean - M5.9
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
+#include "FreeSans24pt7b.h"
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -238,22 +239,6 @@ void fetchWeather() {
   http.end();
 }
 
-void drawSegmentDigit(int x, int y, int digit, uint16_t color) {
-  // Smooth geometric seven-segment numerals: no font dependency, no pixelated scaling.
-  static const uint8_t segs[10] = {
-    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F
-  };
-  const int W=42, H=72, T=7, R=3;
-  uint8_t m = segs[digit];
-  if (m & 0x01) gfx->fillRoundRect(x+T, y, W-2*T, T, R, color);
-  if (m & 0x02) gfx->fillRoundRect(x+W-T, y+T, T, H/2-T, R, color);
-  if (m & 0x04) gfx->fillRoundRect(x+W-T, y+H/2, T, H/2-T, R, color);
-  if (m & 0x08) gfx->fillRoundRect(x+T, y+H-T, W-2*T, T, R, color);
-  if (m & 0x10) gfx->fillRoundRect(x, y+H/2, T, H/2-T, R, color);
-  if (m & 0x20) gfx->fillRoundRect(x, y+T, T, H/2-T, R, color);
-  if (m & 0x40) gfx->fillRoundRect(x+T, y+H/2-T/2, W-2*T, T, R, color);
-}
-
 void drawHomeDynamic() {
   gfx->fillRect(45, 100, 376, 240, RGB565_BLACK);
 
@@ -265,17 +250,17 @@ void drawHomeDynamic() {
     for (char *p = dateBuf; *p; ++p) *p = toupper(*p);
     timeReady = true;
 
-    int hh=t.tm_hour, mm=t.tm_min;
-    const int y=112, gap=7, colonW=18;
-    const int total=42*4 + gap*3 + colonW;
-    int x=(SCREEN_W-total)/2;
-    drawSegmentDigit(x,y,hh/10,RGB565_WHITE); x+=42+gap;
-    drawSegmentDigit(x,y,hh%10,RGB565_WHITE); x+=42+gap;
-    gfx->fillCircle(x+5,y+25,4,RGB565_CYAN);
-    gfx->fillCircle(x+5,y+49,4,RGB565_CYAN);
-    x+=colonW+gap;
-    drawSegmentDigit(x,y,mm/10,RGB565_WHITE); x+=42+gap;
-    drawSegmentDigit(x,y,mm%10,RGB565_WHITE);
+    char timeBuf[6];
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M", &t);
+    gfx->setFont(&FreeSans24pt7b);
+    gfx->setTextSize(2);
+    gfx->setTextColor(RGB565_WHITE);
+    int16_t tx1, ty1; uint16_t tw, th;
+    gfx->getTextBounds(timeBuf, 0, 0, &tx1, &ty1, &tw, &th);
+    gfx->setCursor((SCREEN_W - (int)tw) / 2 - tx1, 180);
+    gfx->print(timeBuf);
+    gfx->setFont();
+    gfx->setTextSize(1);
   }
 
   gfx->setFont(); gfx->setTextSize(2);
@@ -408,7 +393,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.8");
+  Serial.println("OrbBuddy Clean M5.9");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
