@@ -1,14 +1,12 @@
 /*
-  OrbBuddy Clean - M5.1
+  OrbBuddy Clean - M5.2
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
-#include <Fonts/FreeSans12pt7b.h>
-#include <Fonts/FreeSans18pt7b.h>
-#include <Fonts/FreeSans24pt7b.h>
+
 #include <WiFi.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
@@ -251,14 +249,14 @@ void drawHomeDynamic() {
   }
 
   // Proper GFX fonts instead of magnifying the 5x7 bitmap font.
-  gfx->setFont(&FreeSans24pt7b);
+  gfx->setFont(u8g2_font_logisoso32_tf);
   gfx->setTextColor(RGB565_WHITE);
   int16_t x1, y1; uint16_t w, h;
   gfx->getTextBounds(timeBuf, 0, 0, &x1, &y1, &w, &h);
   gfx->setCursor((SCREEN_W - (int)w) / 2, 165);
   gfx->print(timeBuf);
 
-  gfx->setFont(&FreeSans12pt7b);
+  gfx->setFont(u8g2_font_helvR14_tf);
   gfx->setTextColor(RGB565_DARKGREY);
   gfx->getTextBounds(dateBuf, 0, 0, &x1, &y1, &w, &h);
   gfx->setCursor((SCREEN_W - (int)w) / 2, 205);
@@ -267,48 +265,48 @@ void drawHomeDynamic() {
   if (weatherReady) {
     char tempBuf[12];
     snprintf(tempBuf, sizeof(tempBuf), "%.0f C", weatherTemp);
-    gfx->setFont(&FreeSans24pt7b);
+    gfx->setFont(u8g2_font_logisoso32_tf);
     gfx->setTextColor(RGB565_CYAN);
     gfx->getTextBounds(tempBuf, 0, 0, &x1, &y1, &w, &h);
     gfx->setCursor((SCREEN_W - (int)w) / 2, 270);
     gfx->print(tempBuf);
 
     const char *desc = weatherText(weatherCode);
-    gfx->setFont(&FreeSans12pt7b);
+    gfx->setFont(u8g2_font_helvR14_tf);
     gfx->setTextColor(RGB565_WHITE);
     gfx->getTextBounds(desc, 0, 0, &x1, &y1, &w, &h);
     gfx->setCursor((SCREEN_W - (int)w) / 2, 310);
     gfx->print(desc);
   } else {
-    gfx->setFont(&FreeSans12pt7b);
+    gfx->setFont(u8g2_font_helvR14_tf);
     gfx->setTextColor(RGB565_DARKGREY);
     gfx->setCursor(145, 270);
     gfx->print("WEATHER SYNC");
   }
-  gfx->setFont(nullptr);
+  gfx->setFont();
 }
 
 void drawHome() {
   gfx->fillScreen(RGB565_BLACK);
 
-  gfx->setFont(&FreeSans12pt7b);
+  gfx->setFont(u8g2_font_helvR14_tf);
   gfx->setTextColor(RGB565_CYAN);
   int16_t x1, y1; uint16_t w, h;
   const char *place = "WESTPORT";
   gfx->getTextBounds(place, 0, 0, &x1, &y1, &w, &h);
   gfx->setCursor((SCREEN_W - (int)w) / 2, 75);
   gfx->print(place);
-  gfx->setFont(nullptr);
+  gfx->setFont();
 
   drawHomeDynamic();
 
-  gfx->setFont(&FreeSans12pt7b);
+  gfx->setFont(u8g2_font_helvR14_tf);
   gfx->setTextColor(WiFi.status() == WL_CONNECTED ? RGB565_GREEN : RGB565_DARKGREY);
   const char *net = WiFi.status() == WL_CONNECTED ? "WiFi  LIVE" : "WiFi  OFFLINE";
   gfx->getTextBounds(net, 0, 0, &x1, &y1, &w, &h);
   gfx->setCursor((SCREEN_W - (int)w) / 2, 375);
   gfx->print(net);
-  gfx->setFont(nullptr);
+  gfx->setFont();
 
   gfx->fillCircle(233, 405, 4, RGB565_CYAN);
 }
@@ -384,7 +382,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.1");
+  Serial.println("OrbBuddy Clean M5.2");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
