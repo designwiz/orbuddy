@@ -29,7 +29,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println();
-  Serial.println("OrbBuddy Clean M1.2");
+  Serial.println("OrbBuddy Clean M1.3");\n  Serial.printf("Arduino core: %s\\n", ESP_ARDUINO_VERSION_STR);
 
   // EXACT construction and begin sequence used by the known-working Orb firmware.
   Serial.println("[display] init CO5300 QSPI...");
