@@ -1,11 +1,13 @@
 /*
-  OrbBuddy Clean - M3
-  Five-screen navigation bring-up.
+  OrbBuddy Clean - M4
+  Five-screen navigation + Wi-Fi setup portal.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
+#include <WiFi.h>
+#include <WebServer.h>
 
 #define SCREEN_W 466
 #define SCREEN_H 466
@@ -30,6 +32,10 @@
 
 static Arduino_DataBus *bus = nullptr;
 static Arduino_CO5300 *gfx = nullptr;
+static WebServer server(80);
+static bool setupAP = false;
+static String wifiStatus = "STARTING";
+static String wifiIP = "--";
 
 static volatile int32_t rawPos = 0;
 static volatile int32_t anchor = 0;
@@ -92,6 +98,75 @@ uint16_t screenAccent(ScreenId id) {
   }
 }
 
+String htmlPage() {
+  String h = "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>";
+  h += "<title>OrbBuddy Setup</title><style>body{font-family:Arial;background:#090b10;color:#fff;max-width:520px;margin:40px auto;padding:20px}input,button{width:100%;box-sizing:border-box;padding:14px;margin:8px 0;border-radius:10px;border:1px solid #333;background:#151923;color:#fff}button{background:#00a6a6;font-weight:bold}</style></head><body>";
+  h += "<h1>OrbBuddy</h1><p>Wi-Fi setup</p><form method='POST' action='/save'>";
+  h += "<input name='ssid' placeholder='Wi-Fi name' required>";
+  h += "<input name='password' type='password' placeholder='Wi-Fi password'>";
+  h += "<button type='submit'>Save & Connect</button></form>";
+  h += "<p>Status: " + wifiStatus + "</p><p>IP: " + wifiIP + "</p></body></html>";
+  return h;
+}
+
+void startSetupAP() {
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP("OrbBuddy-Setup");
+  setupAP = true;
+  wifiStatus = "SETUP AP";
+  wifiIP = WiFi.softAPIP().toString();
+  Serial.print("[wifi] setup AP: OrbBuddy-Setup  IP: ");
+  Serial.println(wifiIP);
+}
+
+void startWebServer() {
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", htmlPage());
+  });
+
+  server.on("/save", HTTP_POST, []() {
+    String ssid = server.arg("ssid");
+    String password = server.arg("password");
+    if (ssid.length() == 0) {
+      server.send(400, "text/plain", "SSID required");
+      return;
+    }
+
+    server.send(200, "text/html", "<html><body style='font-family:Arial'><h2>Saved</h2><p>OrbBuddy is connecting. You can close this page.</p></body></html>");
+    WiFi.begin(ssid.c_str(), password.c_str());
+    wifiStatus = "CONNECTING";
+    Serial.print("[wifi] connecting to ");
+    Serial.println(ssid);
+  });
+
+  server.begin();
+  Serial.println("[web] setup/admin server started on port 80");
+}
+
+void beginWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();  // Reuse credentials stored by the ESP32 Wi-Fi stack.
+
+  wifiStatus = "CONNECTING";
+  Serial.println("[wifi] trying saved credentials");
+
+  const uint32_t started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < 8000) {
+    delay(100);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiStatus = "CONNECTED";
+    wifiIP = WiFi.localIP().toString();
+    Serial.print("[wifi] connected  IP: ");
+    Serial.println(wifiIP);
+  } else {
+    startSetupAP();
+  }
+
+  startWebServer();
+}
+
 void drawScreen() {
   gfx->fillScreen(RGB565_BLACK);
 
@@ -111,13 +186,22 @@ void drawScreen() {
   gfx->setCursor((SCREEN_W - titleWidth) / 2, 175);
   gfx->print(name);
 
-  // Placeholder content for M3.
   gfx->setTextColor(RGB565_WHITE);
   gfx->setTextSize(2);
-  gfx->setCursor(145, 240);
-  gfx->print("SCREEN ");
-  gfx->print((int)currentScreen + 1);
-  gfx->print(" / 5");
+
+  if (currentScreen == MORE) {
+    gfx->setCursor(130, 235);
+    gfx->print("WiFi: ");
+    gfx->print(wifiStatus);
+    gfx->setCursor(130, 265);
+    gfx->print("IP: ");
+    gfx->print(wifiIP);
+  } else {
+    gfx->setCursor(145, 240);
+    gfx->print("SCREEN ");
+    gfx->print((int)currentScreen + 1);
+    gfx->print(" / 5");
+  }
 
   // Five simple position markers.
   const int dotY = 300;
@@ -149,7 +233,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M3");
+  Serial.println("OrbBuddy Clean M4");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -187,9 +271,26 @@ void setup() {
   Serial.println("[knob] GPIO18(A) / GPIO17(B) / GPIO16(SW)");
   Serial.println("[ui] HOME / WEATHER / RADAR / TIMER / MORE");
   drawScreen();
+  beginWiFi();
+  drawScreen();
 }
 
 void loop() {
+  server.handleClient();
+
+  static wl_status_t lastWiFiState = WL_IDLE_STATUS;
+  wl_status_t nowWiFiState = WiFi.status();
+  if (nowWiFiState != lastWiFiState) {
+    lastWiFiState = nowWiFiState;
+    if (nowWiFiState == WL_CONNECTED) {
+      wifiStatus = "CONNECTED";
+      wifiIP = WiFi.localIP().toString();
+      Serial.print("[wifi] connected  IP: ");
+      Serial.println(wifiIP);
+      if (currentScreen == MORE) drawScreen();
+    }
+  }
+
   int32_t nowDetent = detent;
 
   if (nowDetent != lastDetent) {
