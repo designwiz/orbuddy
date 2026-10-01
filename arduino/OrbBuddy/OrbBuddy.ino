@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M5.9
+  OrbBuddy Clean - M6.0
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -48,6 +48,17 @@ static uint32_t lastWeatherMs = 0;
 static uint32_t lastClockDrawMs = 0;
 static int lastDrawnMinute = -1;
 static bool homeDynamicDirty = true;
+
+// M6 live aircraft radar — Westport centre, 35 nm range.
+static const float RADAR_LAT = 53.8008f;
+static const float RADAR_LON = -9.5223f;
+static const int RADAR_RANGE_NM = 35;
+static const int RADAR_MAX_TARGETS = 12;
+struct RadarTarget { String flight, reg; float lat, lon, altFt, track, distNm, bearing; bool rescue118; };
+static RadarTarget radarTargets[RADAR_MAX_TARGETS];
+static int radarCount = 0;
+static bool radarReady = false;
+static uint32_t lastRadarMs = 0;
 
 static volatile int32_t rawPos = 0;
 static volatile int32_t anchor = 0;
@@ -322,9 +333,56 @@ void drawHome() {
   gfx->fillCircle(233, 405, 4, RGB565_CYAN);
 }
 
+float radarRad(float d) { return d * 0.01745329252f; }
+float radarDistanceNm(float lat1,float lon1,float lat2,float lon2) {
+  float p1=radarRad(lat1), p2=radarRad(lat2), dp=radarRad(lat2-lat1), dl=radarRad(lon2-lon1);
+  float a=sinf(dp/2)*sinf(dp/2)+cosf(p1)*cosf(p2)*sinf(dl/2)*sinf(dl/2);
+  return 3440.065f * 2.0f * atan2f(sqrtf(a),sqrtf(1.0f-a));
+}
+float radarBearing(float lat1,float lon1,float lat2,float lon2) {
+  float p1=radarRad(lat1), p2=radarRad(lat2), dl=radarRad(lon2-lon1);
+  float y=sinf(dl)*cosf(p2), x=cosf(p1)*sinf(p2)-sinf(p1)*cosf(p2)*cosf(dl);
+  float b=atan2f(y,x)*57.2957795f; return b<0?b+360.0f:b;
+}
+String radarJsonString(const String &obj,const char *key) {
+  String needle=String("\\\"")+key+"\\\":"; int p=obj.indexOf(needle); if(p<0)return ""; p+=needle.length();
+  while(p<(int)obj.length() && (obj[p]==' '))p++; if(p>=(int)obj.length()||obj[p]!='\\\"')return ""; p++;
+  int e=obj.indexOf('\\\"',p); return e<0?"":obj.substring(p,e);
+}
+float radarJsonNumber(const String &obj,const char *key,float fallback=NAN) {
+  String needle=String("\\\"")+key+"\\\":"; int p=obj.indexOf(needle); if(p<0)return fallback; p+=needle.length();
+  while(p<(int)obj.length() && obj[p]==' ')p++; if(obj.startsWith("null",p))return fallback; return obj.substring(p).toFloat();
+}
+void fetchRadar() {
+  if(WiFi.status()!=WL_CONNECTED)return;
+  HTTPClient http; String url=String("https://api.airplanes.live/v2/point/")+String(RADAR_LAT,4)+"/"+String(RADAR_LON,4)+"/"+RADAR_RANGE_NM;
+  http.begin(url); http.setTimeout(7000); int code=http.GET();
+  if(code==HTTP_CODE_OK){
+    String body=http.getString(); radarCount=0; int ap=body.indexOf("\\\"ac\\\":[");
+    if(ap>=0){ int p=body.indexOf('{',ap); while(p>=0 && radarCount<RADAR_MAX_TARGETS){ int e=body.indexOf('}',p); if(e<0)break; String o=body.substring(p,e+1);
+      float la=radarJsonNumber(o,"lat"), lo=radarJsonNumber(o,"lon");
+      if(!isnan(la)&&!isnan(lo)){ RadarTarget &t=radarTargets[radarCount]; t.lat=la;t.lon=lo;t.altFt=radarJsonNumber(o,"alt_baro",0);t.track=radarJsonNumber(o,"track",0);t.flight=radarJsonString(o,"flight");t.flight.trim();t.reg=radarJsonString(o,"r");t.reg.trim();t.distNm=radarDistanceNm(RADAR_LAT,RADAR_LON,la,lo);t.bearing=radarBearing(RADAR_LAT,RADAR_LON,la,lo); String id=t.flight+" "+t.reg; id.toUpperCase(); t.rescue118=(id.indexOf("EI-IRT")>=0||id.indexOf("RESCUE118")>=0||id.indexOf("R118")>=0); radarCount++; }
+      p=body.indexOf('{',e+1); int end=body.indexOf(']',e+1); if(end>=0 && (p<0||end<p))break;
+    }} radarReady=true;lastRadarMs=millis();Serial.printf("[radar] %d aircraft within %d nm\\n",radarCount,RADAR_RANGE_NM);
+  } else Serial.printf("[radar] HTTP %d\\n",code); http.end();
+}
+void drawRadar(){
+  gfx->fillScreen(RGB565_BLACK); const int cx=233,cy=238,R=165; gfx->setTextSize(2);gfx->setTextColor(RGB565_GREEN);gfx->setCursor(190,45);gfx->print("RADAR");
+  gfx->drawCircle(cx,cy,R,RGB565_DARKGREY);gfx->drawCircle(cx,cy,R*2/3,RGB565_DARKGREY);gfx->drawCircle(cx,cy,R/3,RGB565_DARKGREY);gfx->drawFastHLine(cx-R,cy,R*2,RGB565_DARKGREY);gfx->drawFastVLine(cx,cy-R,R*2,RGB565_DARKGREY);
+  gfx->setTextColor(RGB565_DARKGREY);gfx->setTextSize(1);gfx->setCursor(229,67);gfx->print("N");gfx->fillCircle(cx,cy,5,RGB565_CYAN);
+  bool rescue=false; for(int i=0;i<radarCount;i++){ RadarTarget &t=radarTargets[i]; float rr=min(t.distNm/(float)RADAR_RANGE_NM,1.0f)*R; float a=radarRad(t.bearing-90.0f); int x=cx+(int)(cosf(a)*rr),y=cy+(int)(sinf(a)*rr); uint16_t c=t.rescue118?RGB565_RED:RGB565_GREEN; gfx->fillCircle(x,y,t.rescue118?7:4,c); if(t.rescue118)rescue=true; }
+  gfx->setTextSize(1);gfx->setTextColor(radarReady?RGB565_WHITE:RGB565_DARKGREY);gfx->setCursor(155,425); if(radarReady){gfx->print(radarCount);gfx->print(" AIRCRAFT / ");gfx->print(RADAR_RANGE_NM);gfx->print(" NM");}else gfx->print("RADAR SYNC");
+  if(rescue){gfx->fillRoundRect(105,88,256,38,10,RGB565_RED);gfx->setTextColor(RGB565_WHITE);gfx->setTextSize(2);gfx->setCursor(129,101);gfx->print("RESCUE 118 NEARBY");}
+}
+
 void drawScreen() {
   if (currentScreen == HOME) {
     drawHome();
+    return;
+  }
+  if (currentScreen == RADAR) {
+    if (WiFi.status() == WL_CONNECTED && (!radarReady || millis() - lastRadarMs > 15000UL)) fetchRadar();
+    drawRadar();
     return;
   }
 
@@ -393,7 +451,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M5.9");
+  Serial.println("OrbBuddy Clean M6.0");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -441,6 +499,11 @@ void setup() {
 
 void loop() {
   server.handleClient();
+
+  if (currentScreen == RADAR && WiFi.status() == WL_CONNECTED && millis() - lastRadarMs > 15000UL) {
+    fetchRadar();
+    drawRadar();
+  }
 
   static wl_status_t lastWiFiState = WL_IDLE_STATUS;
   wl_status_t nowWiFiState = WiFi.status();
