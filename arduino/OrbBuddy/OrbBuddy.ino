@@ -1,6 +1,6 @@
 /*
-  OrbBuddy Clean - M4
-  Five-screen navigation + Wi-Fi setup portal.
+  OrbBuddy Clean - M5
+  Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
 
@@ -8,6 +8,8 @@
 #include <Arduino_GFX_Library.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <HTTPClient.h>
+#include <time.h>
 
 #define SCREEN_W 466
 #define SCREEN_H 466
@@ -36,6 +38,12 @@ static WebServer server(80);
 static bool setupAP = false;
 static String wifiStatus = "STARTING";
 static String wifiIP = "--";
+static bool timeReady = false;
+static bool weatherReady = false;
+static float weatherTemp = 0.0f;
+static int weatherCode = -1;
+static uint32_t lastWeatherMs = 0;
+static uint32_t lastClockDrawMs = 0;
 
 static volatile int32_t rawPos = 0;
 static volatile int32_t anchor = 0;
@@ -167,7 +175,130 @@ void beginWiFi() {
   startWebServer();
 }
 
+const char *weatherText(int code) {
+  if (code == 0) return "Clear";
+  if (code <= 3) return "Partly cloudy";
+  if (code == 45 || code == 48) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if (code >= 61 && code <= 67) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Showers";
+  if (code >= 85 && code <= 86) return "Snow showers";
+  if (code >= 95) return "Thunderstorm";
+  return "Weather";
+}
+
+void beginClock() {
+  setenv("TZ", "GMT0IST,M3.5.0/1,M10.5.0", 1);
+  tzset();
+  configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+
+  struct tm t;
+  timeReady = getLocalTime(&t, 5000);
+  Serial.println(timeReady ? "[time] synced" : "[time] sync pending");
+}
+
+void fetchWeather() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  // Westport, Co. Mayo. Open-Meteo needs no API key.
+  const char *url = "https://api.open-meteo.com/v1/forecast?latitude=53.8008&longitude=-9.5223&current=temperature_2m,weather_code&timezone=Europe%2FDublin";
+  http.begin(url);
+  int code = http.GET();
+
+  if (code == HTTP_CODE_OK) {
+    String body = http.getString();
+    int tPos = body.indexOf("\"temperature_2m\":");
+    int wPos = body.indexOf("\"weather_code\":");
+
+    if (tPos >= 0 && wPos >= 0) {
+      tPos += 17;
+      wPos += 15;
+      weatherTemp = body.substring(tPos).toFloat();
+      weatherCode = body.substring(wPos).toInt();
+      weatherReady = true;
+      lastWeatherMs = millis();
+      Serial.print("[weather] ");
+      Serial.print(weatherTemp, 1);
+      Serial.print(" C  code=");
+      Serial.println(weatherCode);
+    }
+  } else {
+    Serial.print("[weather] HTTP ");
+    Serial.println(code);
+  }
+
+  http.end();
+}
+
+void drawHome() {
+  gfx->fillScreen(RGB565_BLACK);
+
+  gfx->setTextColor(RGB565_CYAN);
+  gfx->setTextSize(2);
+  gfx->setCursor(185, 60);
+  gfx->print("WESTPORT");
+
+  struct tm t;
+  bool haveTime = getLocalTime(&t, 10);
+  char timeBuf[6] = "--:--";
+  char dateBuf[24] = "SYNCING TIME";
+  if (haveTime) {
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M", &t);
+    strftime(dateBuf, sizeof(dateBuf), "%a %d %b", &t);
+    for (char *p = dateBuf; *p; ++p) *p = toupper(*p);
+    timeReady = true;
+  }
+
+  gfx->setTextColor(RGB565_WHITE);
+  gfx->setTextSize(7);
+  gfx->setCursor(112, 120);
+  gfx->print(timeBuf);
+
+  gfx->setTextColor(RGB565_DARKGREY);
+  gfx->setTextSize(2);
+  int dateWidth = strlen(dateBuf) * 12;
+  gfx->setCursor((SCREEN_W - dateWidth) / 2, 190);
+  gfx->print(dateBuf);
+
+  if (weatherReady) {
+    char tempBuf[12];
+    snprintf(tempBuf, sizeof(tempBuf), "%.0f C", weatherTemp);
+    gfx->setTextColor(RGB565_CYAN);
+    gfx->setTextSize(5);
+    int tempWidth = strlen(tempBuf) * 30;
+    gfx->setCursor((SCREEN_W - tempWidth) / 2, 235);
+    gfx->print(tempBuf);
+
+    const char *desc = weatherText(weatherCode);
+    gfx->setTextColor(RGB565_WHITE);
+    gfx->setTextSize(2);
+    int descWidth = strlen(desc) * 12;
+    gfx->setCursor((SCREEN_W - descWidth) / 2, 300);
+    gfx->print(desc);
+  } else {
+    gfx->setTextColor(RGB565_DARKGREY);
+    gfx->setTextSize(2);
+    gfx->setCursor(145, 270);
+    gfx->print("WEATHER SYNC");
+  }
+
+  gfx->setTextColor(WiFi.status() == WL_CONNECTED ? RGB565_GREEN : RGB565_DARKGREY);
+  gfx->setTextSize(2);
+  gfx->setCursor(173, 365);
+  gfx->print(WiFi.status() == WL_CONNECTED ? "WiFi  LIVE" : "WiFi  OFFLINE");
+
+  // Home position marker: subtle cyan dot.
+  gfx->fillCircle(233, 405, 4, RGB565_CYAN);
+}
+
 void drawScreen() {
+  if (currentScreen == HOME) {
+    drawHome();
+    return;
+  }
+
   gfx->fillScreen(RGB565_BLACK);
 
   const uint16_t accent = screenAccent(currentScreen);
@@ -233,7 +364,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M4");
+  Serial.println("OrbBuddy Clean M5");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
@@ -272,6 +403,10 @@ void setup() {
   Serial.println("[ui] HOME / WEATHER / RADAR / TIMER / MORE");
   drawScreen();
   beginWiFi();
+  if (WiFi.status() == WL_CONNECTED) {
+    beginClock();
+    fetchWeather();
+  }
   drawScreen();
 }
 
@@ -288,6 +423,23 @@ void loop() {
       Serial.print("[wifi] connected  IP: ");
       Serial.println(wifiIP);
       if (currentScreen == MORE) drawScreen();
+    }
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!timeReady) {
+      struct tm t;
+      timeReady = getLocalTime(&t, 10);
+    }
+
+    if (!weatherReady || millis() - lastWeatherMs > 900000UL) {
+      fetchWeather();
+      if (currentScreen == HOME) drawScreen();
+    }
+
+    if (currentScreen == HOME && millis() - lastClockDrawMs > 1000UL) {
+      lastClockDrawMs = millis();
+      drawHome();
     }
   }
 
