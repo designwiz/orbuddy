@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.9
+  OrbBuddy Clean - M6.10
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -370,63 +370,57 @@ void fetchRadar() {
 }
 void drawRadar(){
   gfx->fillScreen(RGB565_BLACK);
-  const int cx=233, cy=235;
-  const int R1=142, R2=94, R3=47;
+  const int cx=233, cy=238;
+  const int R1=136, R2=90, R3=45;
 
-  gfx->setFont();
-  gfx->setTextSize(2);
-  gfx->setTextColor(RGB565_GREEN);
-  gfx->setCursor(196,34);
-  gfx->print("RADAR");
+  gfx->setFont(); gfx->setTextSize(2); gfx->setTextColor(RGB565_GREEN);
+  gfx->setCursor(196,35); gfx->print("RADAR");
+  gfx->setTextSize(1); gfx->setTextColor(RGB565_CYAN);
+  gfx->setCursor(216,59); gfx->print("35 NM");
 
-  gfx->setTextSize(1);
-  gfx->setTextColor(RGB565_CYAN);
-  gfx->setCursor(218,57);
-  gfx->print("35 NM");
-
-  // M6.9: clean rings without drawCircle(). Plot small filled dots around
-  // each circumference; this avoids the CO5300 filled-circle erase banding.
+  // M6.10: CO5300-safe radar. The panel corrupts repeated fillCircle geometry,
+  // so plot each circumference as isolated square pixels using fillRect only.
   for(int deg=0; deg<360; deg+=2){
     float a=radarRad((float)deg);
-    int ca=(int)(cosf(a)*R1), sa=(int)(sinf(a)*R1);
-    gfx->fillCircle(cx+ca,cy+sa,2,RGB565_CYAN);
-    ca=(int)(cosf(a)*R2); sa=(int)(sinf(a)*R2);
-    gfx->fillCircle(cx+ca,cy+sa,2,RGB565_CYAN);
-    ca=(int)(cosf(a)*R3); sa=(int)(sinf(a)*R3);
-    gfx->fillCircle(cx+ca,cy+sa,2,RGB565_CYAN);
+    int x=cx+(int)(cosf(a)*R1), y=cy+(int)(sinf(a)*R1);
+    gfx->fillRect(x-1,y-1,3,3,RGB565_CYAN);
+    x=cx+(int)(cosf(a)*R2); y=cy+(int)(sinf(a)*R2);
+    gfx->fillRect(x-1,y-1,3,3,RGB565_CYAN);
+    x=cx+(int)(cosf(a)*R3); y=cy+(int)(sinf(a)*R3);
+    gfx->fillRect(x-1,y-1,3,3,RGB565_CYAN);
   }
 
-  // Thin crosshair using filled rectangles only.
   gfx->fillRect(cx-R1,cy-1,R1*2,3,RGB565_CYAN);
   gfx->fillRect(cx-1,cy-R1,3,R1*2,RGB565_CYAN);
 
-  // Cardinal marks positioned clear of the rings.
-  gfx->setTextColor(RGB565_WHITE);
-  gfx->setTextSize(2);
-  gfx->setCursor(cx-6,75);  gfx->print("N");
-  gfx->setCursor(cx-6,385); gfx->print("S");
-  gfx->setCursor(389,cy-7); gfx->print("E");
-  gfx->setCursor(63, cy-7); gfx->print("W");
+  // Small tick marks every 45 degrees on outer ring.
+  for(int deg=0;deg<360;deg+=45){
+    float a=radarRad((float)deg);
+    int x1=cx+(int)(cosf(a)*(R1-5)), y1=cy+(int)(sinf(a)*(R1-5));
+    gfx->fillRect(x1-2,y1-2,5,5,RGB565_WHITE);
+  }
 
-  // Range labels.
-  gfx->setTextColor(RGB565_CYAN);
-  gfx->setTextSize(1);
-  gfx->setCursor(cx+51,cy+7); gfx->print("12");
-  gfx->setCursor(cx+99,cy+7); gfx->print("23");
+  gfx->setTextColor(RGB565_WHITE); gfx->setTextSize(2);
+  gfx->setCursor(cx-6,83); gfx->print("N");
+  gfx->setCursor(cx-6,386); gfx->print("S");
+  gfx->setCursor(384,cy-7); gfx->print("E");
+  gfx->setCursor(67,cy-7); gfx->print("W");
 
-  // OrbBuddy / Westport origin.
-  gfx->fillCircle(cx,cy,7,RGB565_WHITE);
-  gfx->fillCircle(cx,cy,3,RGB565_BLACK);
+  gfx->setTextColor(RGB565_CYAN); gfx->setTextSize(1);
+  gfx->setCursor(cx+49,cy+8); gfx->print("12");
+  gfx->setCursor(cx+95,cy+8); gfx->print("23");
+
+  gfx->fillRect(cx-4,cy-4,9,9,RGB565_WHITE);
+  gfx->fillRect(cx-1,cy-1,3,3,RGB565_BLACK);
 
   bool rescue=false;
   for(int i=0;i<radarCount;i++){
-    RadarTarget&t=radarTargets[i];
-    if(t.distNm>RADAR_RANGE_NM) continue;
+    RadarTarget&t=radarTargets[i]; if(t.distNm>RADAR_RANGE_NM) continue;
     float rr=(t.distNm/(float)RADAR_RANGE_NM)*R1;
     float a=radarRad(t.bearing-90.0f);
     int x=cx+(int)(cosf(a)*rr), y=cy+(int)(sinf(a)*rr);
     uint16_t col=t.rescue118?RGB565_RED:RGB565_GREEN;
-    gfx->fillCircle(x,y,t.rescue118?9:6,col);
+    gfx->fillRect(x-(t.rescue118?5:4),y-(t.rescue118?5:4),t.rescue118?11:9,t.rescue118?11:9,col);
     String label=t.flight.length()?t.flight:t.reg;
     if(label.length()){
       if(label.length()>8) label=label.substring(0,8);
@@ -436,21 +430,18 @@ void drawRadar(){
     if(t.rescue118) rescue=true;
   }
 
-  gfx->setTextSize(1);
-  gfx->setTextColor(radarReady?RGB565_GREEN:RGB565_WHITE);
+  gfx->setTextSize(1); gfx->setTextColor(radarReady?RGB565_GREEN:RGB565_WHITE);
   char status[42];
-  if(radarReady) snprintf(status,sizeof(status),"%d AIRCRAFT  /  35 NM",radarCount);
+  if(radarReady) snprintf(status,sizeof(status),"%d AIRCRAFT / 35 NM",radarCount);
   else if(lastRadarHttp) snprintf(status,sizeof(status),"RADAR HTTP %d",lastRadarHttp);
   else snprintf(status,sizeof(status),"RADAR SYNCING");
-  int16_t x1,y1; uint16_t w,h;
-  gfx->getTextBounds(status,0,0,&x1,&y1,&w,&h);
-  gfx->setCursor((SCREEN_W-(int)w)/2,425);
-  gfx->print(status);
+  int16_t bx,by; uint16_t bw,bh; gfx->getTextBounds(status,0,0,&bx,&by,&bw,&bh);
+  gfx->setCursor((SCREEN_W-(int)bw)/2,426); gfx->print(status);
 
   if(rescue){
-    gfx->fillRoundRect(102,92,262,36,10,RGB565_RED);
+    gfx->fillRect(102,94,262,36,RGB565_RED);
     gfx->setTextColor(RGB565_WHITE); gfx->setTextSize(2);
-    gfx->setCursor(126,104); gfx->print("RESCUE 118 NEARBY");
+    gfx->setCursor(126,106); gfx->print("RESCUE 118 NEARBY");
   }
 }
 
@@ -529,7 +520,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.9");
+  Serial.println("OrbBuddy Clean M6.10");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
