@@ -184,7 +184,8 @@ void setup() {
 
   lastButton = digitalRead(PIN_KNOB_SW);
 
-  Serial.println("[knob] GPIO18(A) / GPIO17(B) / GPIO16(SW)");\n  Serial.println("[ui] HOME / WEATHER / RADAR / TIMER / MORE");
+  Serial.println("[knob] GPIO18(A) / GPIO17(B) / GPIO16(SW)");
+  Serial.println("[ui] HOME / WEATHER / RADAR / TIMER / MORE");
   drawScreen();
 }
 
