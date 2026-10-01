@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M6.5
+  OrbBuddy Clean - M6.6
   Live HOME: Irish time + Westport weather.
   Known-good display environment: ESP32 Arduino 3.1.3 + Arduino_GFX 1.6.4.
 */
@@ -463,7 +463,7 @@ void setup() {
   delay(500);
 
   Serial.println();
-  Serial.println("OrbBuddy Clean M6.5");
+  Serial.println("OrbBuddy Clean M6.6");
   Serial.printf("Arduino core: %s\n", ESP_ARDUINO_VERSION_STR);
 
   bus = new Arduino_ESP32QSPI(
