@@ -1,5 +1,5 @@
 /*
-  OrbBuddy Clean - M1.2
+  OrbBuddy Clean - M1.3
   Exact AMOLED hardware bring-up copied from the known-working Orb firmware.
   No LVGL, app shell, simulator, Wi-Fi, weather or radar.
 */
@@ -58,7 +58,7 @@ void setup() {
   s_gfx->setTextColor(RGB565_WHITE);
   s_gfx->setTextSize(2);
   s_gfx->setCursor(150, 235);
-  s_gfx->println("CLEAN M1.2");
+  s_gfx->println("CLEAN M1.3");
 
   Serial.println("[display] direct draw complete");
 }
